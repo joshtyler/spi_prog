@@ -37,19 +37,29 @@ std::vector<uint8_t> EepromProg::readId(void)
 	return result;
 }
 
-void EepromProg::write(int addr, uint8_t data)
+// Writes in page program mode
+// Takes iterator to first byte to Program
+// Returns iterator to last byte programmed
+void EepromProg::write(int addr, std::vector<uint8_t>::iterator start, std::vector<uint8_t>::iterator end)
 {
+	if(end-start >= pageSize)
+	{
+		throw "Attempt to write more thand page size";
+	}
+
 	waitUntilReady();
 	enableWriting();
 
 	waitUntilReady();
-	std::vector<uint8_t> transmit(5);
+	std::vector<uint8_t> transmit(4);
 	transmit[0] = static_cast<uint8_t>(SpiCmd::byteProgram);
 	transmit[1] = (addr >> 16) & 0xFF;
 	transmit[2] = (addr >> 8)  & 0xFF;
 	transmit[3] = (addr >> 0)  & 0xFF;
-	transmit[4] = data;
-
+	for(auto it=start; it != end; it++)
+	{
+		transmit.push_back(*it);
+	}
 	spi.xferSpi(transmit);
 }
 
@@ -81,7 +91,7 @@ void EepromProg::waitUntilReady(void)
 	{
 		busy = readStatusRegister();
 		//std::cout << "Waiting: " << std::hex << (int)busy << std::dec << std::endl;
-		
+
 		busy = busy & 0x01;
 	} while (busy);
 }
@@ -130,4 +140,41 @@ void EepromProg::sectorErase(int addr)
 	//sleep(4);
 
 	waitUntilReady();
+}
+
+void EepromProg::program(int addr, std::vector<uint8_t> data)
+{
+	// Ensure address is aligned with sector size
+	if((addr % sectorSize) != 0)
+	{
+		throw "Address not aligned with sector size";
+	}
+
+	int eraseEnd = data.size();
+	if((eraseEnd % sectorSize) != 0)
+	{
+		std::cerr << "Warning. Length not aligned with sector size. Data at end of sector will be erased" << std::endl;
+		eraseEnd += (eraseEnd % sectorSize);
+	}
+
+	//Erase necessary data
+	for(int i= addr; i < eraseEnd; i+=sectorSize)
+	{
+		sectorErase(i);
+	}
+
+	//Program in pages
+	auto start = data.begin();
+	typeof(start) end;
+	do {
+		if(distance(start,data.end()) < pageSize)
+		{
+			end = data.end();
+		} else {
+			end = start + pageSize;
+		}
+		write(addr, start, end);
+		addr = addr + pageSize;
+		start = start + pageSize;
+	} while(end != data.end());
 }

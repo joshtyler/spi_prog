@@ -15,9 +15,10 @@ class EepromProg
 
 		std::vector<uint8_t> read(int addr, int num);
 		std::vector<uint8_t> readId(void);
-		void write(int addr, uint8_t data);
+		void write(int addr, std::vector<uint8_t>::iterator start, std::vector<uint8_t>::iterator end);
 		void chipErase(void);
 		void sectorErase(int addr);
+		void program(int addr, std::vector<uint8_t> data);
 
 	private:
 		uint8_t readStatusRegister(void);
@@ -25,6 +26,9 @@ class EepromProg
 		void enableWriting(void);
 
 		SpiWrapper &spi;
+
+		const int pageSize = 256; //Page size in bytes
+		const int sectorSize = 64*1024; //Sector size in bytes
 
 		enum class SpiCmd : uint8_t
 		{
