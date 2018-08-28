@@ -1,4 +1,4 @@
-// CPP Wrapper for ftdi library 
+// CPP Wrapper for ftdi library
 // Uses same pinout as iceprog (Normal FTDI SPI pins + GPIO for SS)
 
 #ifndef SPI_WRAPPER_HPP

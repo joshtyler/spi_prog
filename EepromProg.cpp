@@ -42,9 +42,9 @@ std::vector<uint8_t> EepromProg::readId(void)
 // Returns iterator to last byte programmed
 void EepromProg::write(int addr, std::vector<uint8_t>::iterator start, std::vector<uint8_t>::iterator end)
 {
-	if(end-start >= pageSize)
+	if(std::distance(start,end) > pageSize)
 	{
-		throw "Attempt to write more thand page size";
+		throw EepromException("Attempt to write more than page size: " + std::to_string(std::distance(start,end)));
 	}
 
 	waitUntilReady();
@@ -60,6 +60,9 @@ void EepromProg::write(int addr, std::vector<uint8_t>::iterator start, std::vect
 	{
 		transmit.push_back(*it);
 	}
+
+	std::cout << "Write to " << addr << ". Size: " << (transmit.size()-4) << std::endl;
+
 	spi.xferSpi(transmit);
 }
 
@@ -147,7 +150,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 	// Ensure address is aligned with sector size
 	if((addr % sectorSize) != 0)
 	{
-		throw "Address not aligned with sector size";
+		throw EepromException("Address not aligned with sector size");
 	}
 
 	int eraseEnd = data.size();
@@ -160,6 +163,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 	//Erase necessary data
 	for(int i= addr; i < eraseEnd; i+=sectorSize)
 	{
+		std::cout << "Erasing sector at " + std::to_string(i) << std::endl;
 		sectorErase(i);
 	}
 
@@ -171,7 +175,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 		{
 			end = data.end();
 		} else {
-			end = start + pageSize;
+			end = start + (pageSize);
 		}
 		write(addr, start, end);
 		addr = addr + pageSize;

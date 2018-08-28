@@ -1,4 +1,4 @@
-// CPP Wrapper for ftdi library 
+// CPP Wrapper for ftdi library
 // Uses same pinout as iceprog (Normal FTDI SPI pins + GPIO for SS)
 
 #include "SpiWrapper.hpp"
@@ -12,8 +12,9 @@ SpiWrapper::SpiWrapper(std::string devstr, enum ftdi_interface ifnum)
 	ftdi_set_interface(&ftdic, ifnum);
 
 	if (devstr.c_str() != NULL) {
-		if (ftdi_usb_open_string(&ftdic, devstr.c_str())) {
+		if (int val = ftdi_usb_open_string(&ftdic, devstr.c_str())) {
 			fprintf(stderr, "Can't find iCE FTDI USB device (device string %s).\n", devstr.c_str());
+			std::cerr << "Return value: " << val << std::endl;
 			error(2);
 		}
 	} else {
@@ -64,6 +65,8 @@ SpiWrapper::SpiWrapper(std::string devstr, enum ftdi_interface ifnum)
 
 	gpio_data = 0x20; // Power on SCK low
 	setSS(true); // Make slave select high
+
+	ftdi_write_data_set_chunksize(&ftdic, 1024*10);
 }
 
 SpiWrapper::~SpiWrapper()
@@ -131,13 +134,24 @@ std::vector<uint8_t> SpiWrapper::xferSpi(std::vector<uint8_t> data)
 		sendByte(data.size() - 1);
 		sendByte((data.size() - 1) >> 8);
 
-		unsigned int rc = ftdi_write_data(&ftdic, data.data(), data.size());
-		if (rc != data.size()) {
-			fprintf(stderr, "Write error (chunk, rc=%d, expected %d).\n", rc, (int)data.size());
-			error(2);
+		// For some reason ftdi_write_data seems to fail if xfer size is > 1024?!
+		int to_transfer = data.size();
+		int offset = 0;
+		while(to_transfer > 0)
+		{
+			int this_transfer = (to_transfer > 1024) ? 1024 : to_transfer;
+
+			int rc = ftdi_write_data(&ftdic, data.data() + offset, this_transfer);
+			if (rc != this_transfer) {
+				fprintf(stderr, "Write error (chunk, rc=%d, expected %d).\n", rc, (int)data.size());
+				error(2);
+			}
+			for (auto i = 0; i < this_transfer; i++)
+				retVal.push_back(recvByte());
+
+			offset += this_transfer;
+			to_transfer -= this_transfer;
 		}
-		for (unsigned int i = 0; i < data.size(); i++)
-			retVal.push_back(recvByte());
 
 		setSS(true);
 	}

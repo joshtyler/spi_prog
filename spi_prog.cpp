@@ -3,6 +3,7 @@
 #include "SpiWrapper.hpp"
 #include "EepromProg.hpp"
 
+#include <fstream>
 #include <iostream>
 
 #include "ftdi.h"
@@ -22,9 +23,28 @@ void print_data(std::vector<uint8_t> data)
 	std::cout << std::endl;
 }
 
-int main(void)
+int main(int argc, char* argv[])
 {
-	SpiWrapper spi("i:0x0403:0x6014", INTERFACE_A);
+	if(argc != 2)
+	{
+		std::cerr << "Usage: spi_prog [binary_file]" << std::endl;
+		return 1;
+	}
+
+	std::ifstream is;
+    std::vector<uint8_t> dataIn;
+
+    is.open(argv[1], std::ios::binary);
+    is.seekg(0, std::ios::end);
+    size_t filesize=is.tellg();
+    is.seekg(0, std::ios::beg);
+
+    dataIn.resize(filesize/sizeof(uint8_t));
+
+    is.read((char *)dataIn.data(), filesize);
+
+//SpiWrapper spi("i:0x0403:0x6014", INTERFACE_A);
+SpiWrapper spi("i:0x0403:0x6010", INTERFACE_A);
 
 	EepromProg prog(spi);
 
@@ -33,26 +53,26 @@ int main(void)
 	std::cout << "Received ID (len " << std::dec << data.size() << "): ";
 	print_data(data);
 
-	/*
-	std::cout << "Sector erase" << std::endl;
-	prog.sectorErase(0);
-
-	std::cout << "Read from 0" << std::endl;
-	data = prog.read(0,1);
-	std::cout << "Received : ";
-	print_data(data);
-
-	std::cout << "Write to 0" << std::endl;
-	prog.write(0,0x75);
-	*/
-
-	std::vector<uint8_t> dataIn = {0,1,2,3,4,5};
 	prog.program(0, dataIn);
 
 	std::cout << "Read from 0" << std::endl;
-	data = prog.read(0,dataIn.size());
-	std::cout << "Received : ";
-	print_data(data);
 
+	typeof(dataIn) dataOut;
+	dataOut = prog.read(0,dataIn.size());
+
+	if(dataOut == dataIn)
+	{
+		std::cout << "Data verified correctly" << std::endl;
+	} else {
+		std::cout << "WARNING: Verifcation error" << std::endl;
+		return 1;
+	}
+
+	/*
+	std::cout << "Sent : ";
+	print_data(dataIn);
+	std::cout << "Received : ";
+	print_data(dataOut);
+	*/
 	return 0;
 }

@@ -5,7 +5,20 @@
 
 
 #include <vector>
+#include <exception>
+
 #include "SpiWrapper.hpp"
+
+class EepromException : public std::exception
+{
+	public:
+		EepromException(std::string ss) : s(ss) {}
+		~EepromException() throw () {}
+		const char* what() const throw() { return s.c_str(); }
+
+	private:
+		std::string s;
+};
 
 class EepromProg
 {
