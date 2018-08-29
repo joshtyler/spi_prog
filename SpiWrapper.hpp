@@ -52,7 +52,7 @@
 class SpiWrapper
 {
 	public:
-		SpiWrapper(std::string devstr, enum ftdi_interface ifnum);
+		SpiWrapper(std::string devstr, enum ftdi_interface ifnum, uint16_t clockDivider);
 		~SpiWrapper();
 		std::vector<uint8_t> xferSpi(std::vector<uint8_t> data);
 

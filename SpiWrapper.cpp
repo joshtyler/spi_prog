@@ -6,7 +6,7 @@
 #include <string>
 #include <iostream>
 
-SpiWrapper::SpiWrapper(std::string devstr, enum ftdi_interface ifnum)
+SpiWrapper::SpiWrapper(std::string devstr, enum ftdi_interface ifnum, uint16_t clockDivider)
 {
 	ftdi_init(&ftdic);
 	ftdi_set_interface(&ftdic, ifnum);
@@ -58,10 +58,13 @@ SpiWrapper::SpiWrapper(std::string devstr, enum ftdi_interface ifnum)
 	// enable clock divide by 5
 	sendByte(MC_TCK_D5);
 
-	// set 6 MHz clock
+	// Set clock divisor
+	// FT2232D is based around 12MHz clock
+	// FT2232H/FT4232H is based around 60MHz clock
+	// data speed = [xtal speed] / ((1+Divisor)*2)
 	sendByte(MC_SET_CLK_DIV);
-	sendByte(0x00);
-	sendByte(0x02);
+	sendByte(clockDivider & 0xFF); //LSB
+	sendByte((clockDivider >> 8) & 0xFF); //MSB
 
 	gpio_data = 0x20; // Power on SCK low
 	setSS(true); // Make slave select high

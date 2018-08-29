@@ -2,6 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <unistd.h>
+#include<boost/progress.hpp>
 
 std::vector<uint8_t> EepromProg::read(int addr, int num)
 {
@@ -61,7 +62,7 @@ void EepromProg::write(int addr, std::vector<uint8_t>::iterator start, std::vect
 		transmit.push_back(*it);
 	}
 
-	std::cout << "Write to " << addr << ". Size: " << (transmit.size()-4) << std::endl;
+	//std::cout << "Write to " << addr << ". Size: " << (transmit.size()-4) << std::endl;
 
 	spi.xferSpi(transmit);
 }
@@ -168,6 +169,8 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 	}
 
 	//Program in pages
+	unsigned long expectedCount = data.size()/pageSize;
+	boost::progress_display show_progress(expectedCount, std::cerr,"");
 	auto start = data.begin();
 	typeof(start) end;
 	do {
@@ -178,6 +181,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 			end = start + (pageSize);
 		}
 		write(addr, start, end);
+		++show_progress;
 		addr = addr + pageSize;
 		start = start + pageSize;
 	} while(end != data.end());
