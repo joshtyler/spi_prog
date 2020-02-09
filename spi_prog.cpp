@@ -101,18 +101,22 @@ int main(int argc, char* argv[])
 	bool verify;
 	enum ftdi_interface ifNum;
 	uint16_t freqDivider; //Frequency divider for SPI interface
+
+	std::unique_ptr<SpiInterface> spi = NULL;
+
 	try {
 		cxxopts::Options options("spi_prog", "Simple programmer for SPI EEPROMs");
 		options.add_options()
 			("f,file","File to program", cxxopts::value<std::string>())
+			("t,target","Which device will do the programming. FTDI or wbuart",cxxopts::value<std::string>()->default_value("ftdi"))
 			("d,device","Device string, in ftdi_usb_open_string() format.",cxxopts::value<std::string>()->default_value("i:0x0403:0x6010"))
-			("i,interface","Used for mult-interface FTDI chips: A,B,C or D",cxxopts::value<std::string>()->default_value("A"))
+			("interface","[FTDI mode] Used for mult-interface FTDI chips: A,B,C or D",cxxopts::value<std::string>()->default_value("A"))
+			("xtal", "[FTDI mode] frequency either 60MHz or 12MHz. Used for clock divider calculation",cxxopts::value<std::string>()->default_value("12MHz"))
+			("freq","[FTDI mode] Desired programming frequency. Max 6MHz for 12MHz clock. Max 30MHz for 60MHz clock",cxxopts::value<std::string>()->default_value("6MHz"))
 			("a,address","Address to write file to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
-			("t,readid","Read the ID bytes of the EEPROM")
+			("i,readid","Read the ID bytes of the EEPROM")
 			("w,write","Write a file to the EEPROM")
 			("v,verify","Verify against a file")
-			("x,xtal", "frequency either 60MHz or 12MHz. Used for clock divider calculation",cxxopts::value<std::string>()->default_value("12MHz"))
-			("q,freq","Desired programming frequency. Max 6MHz for 12MHz clock. Max 30MHz for 60MHz clock",cxxopts::value<std::string>()->default_value("6MHz"))
 			("help","Print help")
 			;
 
@@ -124,13 +128,13 @@ int main(int argc, char* argv[])
 			std::cout << options.help({"", "Group"}) << std::endl;
 			exit(0);
 		}
-		readId = result.count("t");
-		write = result.count("w");
-		verify = result.count("v");
+		readId = result.count("readid");
+		write = result.count("write");
+		verify = result.count("verify");
 
-		if(result.count("f"))
+		if(result.count("file"))
 		{
-			filename = result["f"].as<std::string>();
+			filename = result["file"].as<std::string>();
 		} else {
 			if(write or verify)
 			{
@@ -138,79 +142,92 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		deviceString = result["d"].as<std::string>();
-
-		std::string ifStr = result["i"].as<std::string>();
-		if(ifStr.size() == 1)
-		{
-			switch(toupper(ifStr[0]))
-			{
-				case 'A':
-					ifNum = INTERFACE_A;
-					break;
-				case 'B':
-					ifNum = INTERFACE_B;
-					break;
-				case 'C':
-					ifNum = INTERFACE_C;
-					break;
-				case 'D':
-					ifNum = INTERFACE_D;
-					break;
-				default:
-					throw cxxopts::OptionException("Invalid interface selected");
-			}
-		} else {
-			throw cxxopts::OptionException("Invalid interface selected");
-		}
-
-		addr = result["a"].as<int>();
-
-		// Calculate clock divider
-		double xtal = parseFreq(result["x"].as<std::string>());
-		if(not (xtal == 60e6 or xtal == 12e6 ))
-		{
-			throw cxxopts::OptionException("Invalid xtal frequency. Only 60MHz or 12MHz is valid");
-		}
-
-		double progFreq = parseFreq(result["q"].as<std::string>());
-		if(progFreq <= 0)
-		{
-			throw cxxopts::OptionException("Invalid programming frequency.");
-		}
-		// From FTDI MPSSE Basics p.9:
-		// data speed = [xtal speed] / ((1+Divisor)*2)
-		// divisor = ([xtal speed]/(2*[data speed]))-1
-		if(progFreq >= xtal/2.0)
-		{
-			freqDivider = 0x0000;
-		} else {
-			double divider = (xtal / (2.0*progFreq)) -1.0;
-
-			if(divider > (double)0xFFFF)
-			{
-				freqDivider = (double)0xFFFF;
-			} else {
-				freqDivider = (uint16_t)divider;
-			}
-	}
-
-		double actualFreq = xtal / ((1+ ((double)freqDivider))*2.0);
-		if(actualFreq != progFreq)
-		{
-			std::cerr << "Could not calculate divider for requested frequency. Using " << actualFreq/1e6 << "MHz" << std::endl;
-		}
-
 		if(not (readId or write or verify))
 		{
 			throw cxxopts::OptionException("No action selected");
 		}
 
+		auto target = result["target"].as<std::string>();
+		// Convert to all lower case
+		std::transform(target.begin(), target.end(), target.begin(), [](unsigned char c){return std::tolower(c);});
+		if(target == "ftdi")
+		{
+			deviceString = result["device"].as<std::string>();
+
+			std::string ifStr = result["interface"].as<std::string>();
+			if(ifStr.size() == 1)
+			{
+				switch(toupper(ifStr[0]))
+				{
+					case 'A':
+						ifNum = INTERFACE_A;
+						break;
+					case 'B':
+						ifNum = INTERFACE_B;
+						break;
+					case 'C':
+						ifNum = INTERFACE_C;
+						break;
+					case 'D':
+						ifNum = INTERFACE_D;
+						break;
+					default:
+						throw cxxopts::OptionException("Invalid interface selected");
+				}
+			} else {
+				throw cxxopts::OptionException("Invalid interface selected");
+			}
+
+			addr = result["address"].as<int>();
+
+			// Calculate clock divider
+			double xtal = parseFreq(result["xtal"].as<std::string>());
+			if(not (xtal == 60e6 or xtal == 12e6 ))
+			{
+				throw cxxopts::OptionException("Invalid xtal frequency. Only 60MHz or 12MHz is valid");
+			}
+
+			double progFreq = parseFreq(result["freq"].as<std::string>());
+			if(progFreq <= 0)
+			{
+				throw cxxopts::OptionException("Invalid programming frequency.");
+			}
+			// From FTDI MPSSE Basics p.9:
+			// data speed = [xtal speed] / ((1+Divisor)*2)
+			// divisor = ([xtal speed]/(2*[data speed]))-1
+			if(progFreq >= xtal/2.0)
+			{
+				freqDivider = 0x0000;
+			} else {
+				double divider = (xtal / (2.0*progFreq)) -1.0;
+
+				if(divider > (double)0xFFFF)
+				{
+					freqDivider = (double)0xFFFF;
+				} else {
+					freqDivider = (uint16_t)divider;
+				}
+		}
+
+			double actualFreq = xtal / ((1+ ((double)freqDivider))*2.0);
+			if(actualFreq != progFreq)
+			{
+				std::cerr << "Could not calculate divider for requested frequency. Using " << actualFreq/1e6 << "MHz" << std::endl;
+			}
+			spi = std::make_unique<SpiWrapper>(deviceString, ifNum, freqDivider);
+
+
+		} else if(target == "wbuart") {
+			throw cxxopts::OptionException("Need to implement this target");
+		} else {
+			throw cxxopts::OptionException("Invalid target");
+		}
+
 	} catch (const cxxopts::OptionException& e)
-  {
-    std::cerr << "error parsing options: " << e.what() << std::endl;
-    exit(1);
-  }
+	{
+	std::cerr << "error parsing options: " << e.what() << std::endl;
+	exit(1);
+	}
 
 	std::vector<uint8_t> dataIn;
 	if(write or verify)
@@ -230,8 +247,7 @@ int main(int argc, char* argv[])
 		is.close();
 	}
 
-	SpiWrapper spi(deviceString, ifNum, freqDivider);
-	EepromProg prog(&spi);
+	EepromProg prog(spi.get());
 
 	if(readId)
 	{
