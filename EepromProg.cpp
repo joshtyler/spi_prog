@@ -2,7 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <unistd.h>
-#include<boost/progress.hpp>
+#include<boost/timer/progress_display.hpp>
 
 std::vector<uint8_t> EepromProg::read(int addr, int num)
 {
@@ -170,7 +170,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 
 	//Program in pages
 	unsigned long expectedCount = data.size()/pageSize;
-	boost::progress_display show_progress(expectedCount, std::cerr,"");
+	boost::timer::progress_display show_progress(expectedCount, std::cerr,"");
 	auto start = data.begin();
 	typeof(start) end;
 	do {
