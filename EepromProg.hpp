@@ -23,7 +23,7 @@ class EepromException : public std::exception
 class EepromProg
 {
 	public:
-		EepromProg(SpiWrapper &spiIn) :spi(spiIn) {};
+		EepromProg(SpiInterface *spi) :spi(spi) {};
 		~EepromProg() {};
 
 		std::vector<uint8_t> read(int addr, int num);
@@ -38,7 +38,7 @@ class EepromProg
 		void waitUntilReady(void);
 		void enableWriting(void);
 
-		SpiWrapper &spi;
+		SpiInterface *spi;
 
 		const int pageSize = 256; //Page size in bytes
 		const int sectorSize = 64*1024; //Sector size in bytes

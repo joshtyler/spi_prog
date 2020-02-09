@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 	}
 
 	SpiWrapper spi(deviceString, ifNum, freqDivider);
-	EepromProg prog(spi);
+	EepromProg prog(&spi);
 
 	if(readId)
 	{

@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "SpiInterface.hpp"
+
 /* Transfer Command bits */
 
 /* All byte based commands consist of:
@@ -49,12 +51,12 @@
 #define MC_DATA_OCN  (0x01) /* When set update data on negative clock edge */
 
 
-class SpiWrapper
+class SpiWrapper : public SpiInterface
 {
 	public:
 		SpiWrapper(std::string devstr, enum ftdi_interface ifnum, uint16_t clockDivider);
 		~SpiWrapper();
-		std::vector<uint8_t> xferSpi(std::vector<uint8_t> data);
+		std::vector<uint8_t> xferSpi(std::vector<uint8_t> data) override;
 
 	private:
 		void sendByte(uint8_t byte);
