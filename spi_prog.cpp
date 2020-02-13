@@ -4,6 +4,8 @@
 
 #include "SpiWrapper.hpp"
 #include "EepromProg.hpp"
+#include "WbUart.hpp"
+#include "WbSpiWrapper.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -94,30 +96,32 @@ int main(int argc, char* argv[])
 {
 	//Parse arguments
 	std::string filename;
-	std::string deviceString;
 	int addr;
 	bool readId;
 	bool write;
 	bool verify;
-	enum ftdi_interface ifNum;
-	uint16_t freqDivider; //Frequency divider for SPI interface
 
-	std::unique_ptr<SpiInterface> spi = NULL;
+	std::unique_ptr<SpiInterface> ftdi_spi = NULL;
+	std::unique_ptr<WbUart<uint8_t,8>> uart = NULL;
+	std::unique_ptr<WbSpiWrapper<uint8_t>> wb_spi = NULL;
+	std::unique_ptr<EepromProg> prog = NULL;
 
 	try {
 		cxxopts::Options options("spi_prog", "Simple programmer for SPI EEPROMs");
 		options.add_options()
-			("f,file","File to program", cxxopts::value<std::string>())
-			("t,target","Which device will do the programming. FTDI or wbuart",cxxopts::value<std::string>()->default_value("ftdi"))
-			("d,device","Device string, in ftdi_usb_open_string() format.",cxxopts::value<std::string>()->default_value("i:0x0403:0x6010"))
-			("interface","[FTDI mode] Used for mult-interface FTDI chips: A,B,C or D",cxxopts::value<std::string>()->default_value("A"))
-			("xtal", "[FTDI mode] frequency either 60MHz or 12MHz. Used for clock divider calculation",cxxopts::value<std::string>()->default_value("12MHz"))
-			("freq","[FTDI mode] Desired programming frequency. Max 6MHz for 12MHz clock. Max 30MHz for 60MHz clock",cxxopts::value<std::string>()->default_value("6MHz"))
-			("a,address","Address to write file to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
-			("i,readid","Read the ID bytes of the EEPROM")
-			("w,write","Write a file to the EEPROM")
-			("v,verify","Verify against a file")
-			("help","Print help")
+			("f,file",    "File to program", cxxopts::value<std::string>())
+			("t,target",  "Which device will do the programming. FTDI or wbuart",cxxopts::value<std::string>()->default_value("ftdi"))
+			("d,device",  "[FTDI mode] Device string, in ftdi_usb_open_string() format.",cxxopts::value<std::string>()->default_value("i:0x0403:0x6010"))
+			("interface", "[FTDI mode] Used for mult-interface FTDI chips: A,B,C or D",cxxopts::value<std::string>()->default_value("A"))
+			("xtal",      "[FTDI mode] frequency either 60MHz or 12MHz. Used for clock divider calculation",cxxopts::value<std::string>()->default_value("12MHz"))
+			("freq",      "[FTDI mode] Desired programming frequency. Max 6MHz for 12MHz clock. Max 30MHz for 60MHz clock",cxxopts::value<std::string>()->default_value("6MHz"))
+			("uartdev",   "[wbuart mode] Serial port device string")
+			("compaddr",  "[wbuart mode] Address of wishbone SPI component")
+			("a,address", "Address to write file to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
+			("i,readid",  "Read the ID bytes of the EEPROM")
+			("w,write",   "Write a file to the EEPROM")
+			("v,verify",  "Verify against a file")
+			("h,help",    "Print help")
 			;
 
 		auto result = options.parse(argc, argv);
@@ -152,6 +156,10 @@ int main(int argc, char* argv[])
 		std::transform(target.begin(), target.end(), target.begin(), [](unsigned char c){return std::tolower(c);});
 		if(target == "ftdi")
 		{
+			std::string deviceString;
+			enum ftdi_interface ifNum;
+			uint16_t freqDivider; //Frequency divider for SPI interface
+
 			deviceString = result["device"].as<std::string>();
 
 			std::string ifStr = result["interface"].as<std::string>();
@@ -214,11 +222,18 @@ int main(int argc, char* argv[])
 			{
 				std::cerr << "Could not calculate divider for requested frequency. Using " << actualFreq/1e6 << "MHz" << std::endl;
 			}
-			spi = std::make_unique<SpiWrapper>(deviceString, ifNum, freqDivider);
-
+			ftdi_spi = std::make_unique<SpiWrapper>(deviceString, ifNum, freqDivider);
+			prog = std::make_unique<EepromProg>(ftdi_spi.get());
 
 		} else if(target == "wbuart") {
-			throw cxxopts::OptionException("Need to implement this target");
+
+			//uart = std::make_unique<decltype(uart)>("/dev/ttyUSB0", 115200); // Doesn't work
+			uart = std::make_unique<WbUart<uint8_t,8>>(result["uartdev"].as<std::string>(), 115200);
+
+			wb_spi = std::make_unique<WbSpiWrapper<uint8_t>>(uart.get(),result["compaddr"].as<int>());
+
+			prog = std::make_unique<EepromProg>(wb_spi.get());
+
 		} else {
 			throw cxxopts::OptionException("Invalid target");
 		}
@@ -247,12 +262,10 @@ int main(int argc, char* argv[])
 		is.close();
 	}
 
-	EepromProg prog(spi.get());
-
 	if(readId)
 	{
 		std::cout << "Read ID" << std::endl;
-		std::vector<uint8_t> data = prog.readId();
+		std::vector<uint8_t> data = prog->readId();
 		std::cout << "Received ID (len " << std::dec << data.size() << "): ";
 		print_data(data);
 	}
@@ -260,7 +273,7 @@ int main(int argc, char* argv[])
 	if(write)
 	{
 		std::cout << "Write to " << addr << std::endl;
-		prog.program(addr, dataIn);
+		prog->program(addr, dataIn);
 	}
 
 	if(verify)
@@ -268,7 +281,7 @@ int main(int argc, char* argv[])
 		std::cout << "Read from " << addr << std::endl;
 
 		typeof(dataIn) dataOut;
-		dataOut = prog.read(addr,dataIn.size());
+		dataOut = prog->read(addr,dataIn.size());
 
 		if(dataOut == dataIn)
 		{

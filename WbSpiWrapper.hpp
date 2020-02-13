@@ -4,17 +4,40 @@
 // Class to talk to the Wishbone SPI peripheral
 
 // Register map:
-// 0x00 : Flags
-// 0x01 : Fifo depth (log2)
+// 0x00 : Reserved
+// 0x01 : Config
+//      : Bit 0 : CS
 // 0x01 : Receive count
-// 0x02 : Send dataIn
-// 0x03 : receive data
+// 0x02 : data
 
-class WbSpiWrapper : public SpiInterface
+#include "WbInterface.hpp"
+#include "SpiInterface.hpp"
+
+template<class DATA_T> class WbSpiWrapper : public SpiInterface
 {
 	public:
-		WbSpiWrapper(WbInterface if, uintptr_t base_addr);
-		std::vector<uint8_t> xferSpi(std::vector<uint8_t> data) override;
+		WbSpiWrapper(WbInterface<DATA_T> *iface, uintptr_t base_addr)
+		:iface(iface)
+		{
+
+		};
+		std::vector<uint8_t> xferSpi(std::vector<uint8_t> data) override
+		{
+			std::vector<uint8_t> ret;
+			// For now we will just do the really naive thing of one byte at a time
+			// Not a software limitation, but will help with firmware bringup
+			iface->write(1,{0}); // CS low
+			for(auto datum : data)
+			{
+				iface->write(2,{datum});
+				auto temp = iface->read(2,1);
+				ret.insert(ret.end(), temp.begin(), temp.end());
+			}
+			iface->write(1,{1}); // CS high
+			return ret;
+		}
+	private:
+		WbInterface<DATA_T> *iface;
 
 };
 #endif
