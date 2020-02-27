@@ -38,6 +38,12 @@ std::vector<uint8_t> EepromProg::readId(void)
 	return result;
 }
 
+void EepromProg::releasePowerDown(void)
+{
+	std::vector<uint8_t> transmit = {0xAB,0xFF,0xFF,0xFF,0xFF};
+	spi->xferSpi(transmit);
+}
+
 // Writes in page program mode
 // Takes iterator to first byte to Program
 // Returns iterator to last byte programmed

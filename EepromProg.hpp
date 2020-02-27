@@ -32,6 +32,7 @@ class EepromProg
 		void chipErase(void);
 		void sectorErase(int addr);
 		void program(int addr, std::vector<uint8_t> data);
+		void releasePowerDown(void);
 
 	private:
 		uint8_t readStatusRegister(void);

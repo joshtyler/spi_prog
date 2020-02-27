@@ -4,6 +4,7 @@
 // Assumed to be 8n1 UART, baud configurable
 // Uses this UART library https://github.com/wjwwood/serial
 
+#include <iostream>
 #include <string>
 #include <exception>
 
@@ -23,7 +24,7 @@ template<class DATA_T, int ADDR_BITS> class WbUart : public WbInterface<DATA_T>
 {
 public:
 	WbUart(std::string dev_path, uint32_t baud)
-	:serial(dev_path, baud)
+	:serial(dev_path, baud, serial::Timeout::simpleTimeout(serial::Timeout::max()))
 	{
 		if(!serial.isOpen())
 		{
@@ -34,6 +35,11 @@ public:
 	virtual void write(uintptr_t addr, std::vector<DATA_T> data) override
 	{
 		auto packet = format_transaction(true, addr, data);
+//		std::cout << "(wr) Sending packet : ";
+//		for(auto datum : packet)
+//			std::cout << (int) datum << ", ";
+//		std::cout << std::endl;
+
 		serial.write(packet);
 	};
 
@@ -41,6 +47,10 @@ public:
 	{
 		// Slight hack constructing an empty vector just to avoid a separate function
 		auto packet = format_transaction(false, addr, std::vector<DATA_T>());
+//		std::cout << "(rd) Sending packet : ";
+//		for(auto datum : packet)
+//			std::cout << (int) datum << ", ";
+//		std::cout << std::endl;
 		serial.write(packet);
 
 		std::vector<uint8_t> buf;
@@ -65,6 +75,7 @@ public:
 				}
 			}
 		}
+//		std::cout << "(rd)Got packet of size " << ret.size() << " (data[0]= " << (int)ret[0] << ")" << std::endl;
 		return ret;
 	};
 

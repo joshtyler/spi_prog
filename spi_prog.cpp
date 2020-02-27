@@ -115,8 +115,8 @@ int main(int argc, char* argv[])
 			("interface", "[FTDI mode] Used for mult-interface FTDI chips: A,B,C or D",cxxopts::value<std::string>()->default_value("A"))
 			("xtal",      "[FTDI mode] frequency either 60MHz or 12MHz. Used for clock divider calculation",cxxopts::value<std::string>()->default_value("12MHz"))
 			("freq",      "[FTDI mode] Desired programming frequency. Max 6MHz for 12MHz clock. Max 30MHz for 60MHz clock",cxxopts::value<std::string>()->default_value("6MHz"))
-			("uartdev",   "[wbuart mode] Serial port device string")
-			("compaddr",  "[wbuart mode] Address of wishbone SPI component")
+			("uartdev",   "[wbuart mode] Serial port device string", cxxopts::value<std::string>())
+			("compaddr",  "[wbuart mode] Address of wishbone SPI component", cxxopts::value<int>())
 			("a,address", "Address to write file to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
 			("i,readid",  "Read the ID bytes of the EEPROM")
 			("w,write",   "Write a file to the EEPROM")
@@ -228,7 +228,7 @@ int main(int argc, char* argv[])
 		} else if(target == "wbuart") {
 
 			//uart = std::make_unique<decltype(uart)>("/dev/ttyUSB0", 115200); // Doesn't work
-			uart = std::make_unique<WbUart<uint8_t,8>>(result["uartdev"].as<std::string>(), 115200);
+			uart = std::make_unique<WbUart<uint8_t,8>>(result["uartdev"].as<std::string>(), 2000000);
 
 			wb_spi = std::make_unique<WbSpiWrapper<uint8_t>>(uart.get(),result["compaddr"].as<int>());
 
@@ -261,6 +261,8 @@ int main(int argc, char* argv[])
 
 		is.close();
 	}
+
+	 prog->releasePowerDown();
 
 	if(readId)
 	{
