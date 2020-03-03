@@ -160,7 +160,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 		throw EepromException("Address not aligned with sector size");
 	}
 
-	int eraseEnd = data.size();
+	int eraseEnd = addr+data.size();
 	if((eraseEnd % sectorSize) != 0)
 	{
 		std::cerr << "Warning. Length not aligned with sector size. Data at end of sector will be erased" << std::endl;
@@ -170,7 +170,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 	//Erase necessary data
 	for(int i= addr; i < eraseEnd; i+=sectorSize)
 	{
-		std::cout << "Erasing sector at " + std::to_string(i) << std::endl;
+		std::cout << "Erasing sector at 0x" << std::hex << i << std::dec << std::endl;
 		sectorErase(i);
 	}
 
