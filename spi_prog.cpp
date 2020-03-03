@@ -136,6 +136,8 @@ int main(int argc, char* argv[])
 		write = result.count("write");
 		verify = result.count("verify");
 
+		addr = result["address"].as<int>();
+
 		if(result.count("file"))
 		{
 			filename = result["file"].as<std::string>();
@@ -186,8 +188,6 @@ int main(int argc, char* argv[])
 				throw cxxopts::OptionException("Invalid interface selected");
 			}
 
-			addr = result["address"].as<int>();
-
 			// Calculate clock divider
 			double xtal = parseFreq(result["xtal"].as<std::string>());
 			if(not (xtal == 60e6 or xtal == 12e6 ))
@@ -228,7 +228,7 @@ int main(int argc, char* argv[])
 		} else if(target == "wbuart") {
 
 			//uart = std::make_unique<decltype(uart)>("/dev/ttyUSB0", 115200); // Doesn't work
-			uart = std::make_unique<WbUart<uint8_t,8>>(result["uartdev"].as<std::string>(), 2000000);
+			uart = std::make_unique<WbUart<uint8_t,8>>(result["uartdev"].as<std::string>(), 460800);
 
 			wb_spi = std::make_unique<WbSpiWrapper<uint8_t>>(uart.get(),result["compaddr"].as<int>());
 
@@ -290,6 +290,8 @@ int main(int argc, char* argv[])
 			std::cout << "Data verified correctly" << std::endl;
 		} else {
 			std::cout << "WARNING: Verifcation error" << std::endl;
+			std::ofstream of("readback.bin", std::ios::out | std::ios::binary);
+			of.write((char *)&dataOut[0],dataOut.size()*sizeof(dataOut[0]));
 			return 1;
 		}
 	}

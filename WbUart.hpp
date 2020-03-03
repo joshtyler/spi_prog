@@ -4,6 +4,9 @@
 // Assumed to be 8n1 UART, baud configurable
 // Uses this UART library https://github.com/wjwwood/serial
 
+#warning "Super hacky ifdef for prints"
+//#define DEBUG_PRINTS
+
 #include <iostream>
 #include <string>
 #include <exception>
@@ -19,12 +22,19 @@ class WbUartException : public std::runtime_error
 	using std::runtime_error::runtime_error;
 };
 
+static inline void print_vec(std::vector<uint8_t> in)
+{
+	std::cout << "Size " << std::dec << in.size() << ". Data: " << std::hex;
+	for(auto datum : in)
+		std::cout << "0x" << (int) datum << ", ";
+	std::cout << std::dec << std::endl;
+}
 
 template<class DATA_T, int ADDR_BITS> class WbUart : public WbInterface<DATA_T>
 {
 public:
 	WbUart(std::string dev_path, uint32_t baud)
-	:serial(dev_path, baud, serial::Timeout::simpleTimeout(serial::Timeout::max()))
+	:serial(dev_path, baud, serial::Timeout::simpleTimeout(10000))//serial::Timeout::max()))
 	{
 		if(!serial.isOpen())
 		{
@@ -34,59 +44,78 @@ public:
 
 	virtual void write(uintptr_t addr, std::vector<DATA_T> data) override
 	{
-		auto packet = format_transaction(true, addr, data);
-//		std::cout << "(wr) Sending packet : ";
-//		for(auto datum : packet)
-//			std::cout << (int) datum << ", ";
-//		std::cout << std::endl;
-
+		auto packet = format_write_transaction(addr, data);
+		#ifdef DEBUG_PRINTS
+		std::cout << "(wr) Sending packet. ";
+		print_vec(packet);
+		#endif
 		serial.write(packet);
 	};
 
 	virtual std::vector<DATA_T> read(uintptr_t addr, size_t num) override
 	{
-		// Slight hack constructing an empty vector just to avoid a separate function
-		auto packet = format_transaction(false, addr, std::vector<DATA_T>());
-//		std::cout << "(rd) Sending packet : ";
-//		for(auto datum : packet)
-//			std::cout << (int) datum << ", ";
-//		std::cout << std::endl;
-		serial.write(packet);
-
-		std::vector<uint8_t> buf;
-		auto num_read = serial.read(buf, num*sizeof(DATA_T));
-
-		if(num_read != num*sizeof(DATA_T))
-		{
-			throw WbUartException("Timed out when reading");
-		}
 
 		std::vector<DATA_T> ret;
-		if(sizeof(DATA_T) == 1)
+
+		for(auto i=0u; i<num; i+=255)
 		{
-			ret = buf;
-		} else {
-			for(auto datum : buf)
+			auto next_inc = num-i < 255? num-i : 255;
+
+			// Assume write to constant address
+			auto packet = format_transaction_metadata(false, next_inc, addr );
+
+			#ifdef DEBUG_PRINTS
+			std::cout << "(rd) Sending packet. ";
+			print_vec(packet);
+			#endif
+			serial.write(packet);
+
+			// Get data back
+			std::vector<uint8_t> buf;
+			auto num_read = serial.read(buf, num*sizeof(DATA_T));
+
+			if(num_read != num*sizeof(DATA_T))
 			{
-				boost::endian::big_to_native_inplace(datum);
-				for(auto i=0u; i<sizeof(datum); i++)
-				{
-					ret.push_back(reinterpret_cast<uint8_t*>(&datum)[i]);
-				}
+				throw WbUartException("Timed out when reading");
 			}
+
+
+			auto part = data_to_uint8_t(buf);
+
+			#ifdef DEBUG_PRINTS
+			std::cout << "(rd)Got packet. ";
+			print_vec(part);
+			#endif
+			ret.insert(ret.end(), part.begin(), part.end());
 		}
-//		std::cout << "(rd)Got packet of size " << ret.size() << " (data[0]= " << (int)ret[0] << ")" << std::endl;
 		return ret;
 	};
 
 private:
 	serial::Serial serial;
 
-	std::vector<uint8_t> format_transaction(bool write, uintptr_t addr, std::vector<DATA_T> data)
+	std::vector<std::vector<uint8_t>> split_vector(std::vector<uint8_t> in)
+	{
+		constexpr unsigned int size = 255;
+
+		std::vector<std::vector<uint8_t>> ret;
+
+		unsigned int num = in.size()/size + (in.size()%size != 0);
+
+		for(auto i=0u; i<num; i++)
+		{
+			unsigned int cur_size = (i == num-1)? (in.size()%size? in.size()%size : 255 ) : size;
+			ret.push_back(std::vector<uint8_t>(in.begin()+i*size,in.begin()+(i*size)+cur_size));
+		}
+		return ret;
+	}
+
+	std::vector<uint8_t> format_transaction_metadata(bool write, uint8_t count, uintptr_t addr)
 	{
 		// First bit is !r/w
-		// Then address in big endian format
-		// Then data verbatim for tx, or nothing for tx
+		// Then address in big endian format (assume we are doing constant address access if we have to split)
+		// Then one byte of count
+		// Then data verbatim for tx, or nothing for rx
 
 		// This probably isn't the most efficient way of doing it
 		// Many of these things are constants we know at compile time
@@ -97,12 +126,12 @@ private:
 
 		std::vector<uint8_t> ret;
 
+		// Operation
 		ret.push_back(write);
 
+		// Addr
 		boost::endian::native_to_big_inplace(addr);
-
 		//Only send enough bytes to store the address
-
 		// This is ceil() for integers
 		constexpr unsigned int ADDR_BYTES = ADDR_BITS/8 + (ADDR_BITS%8 != 0);
 		constexpr unsigned int START_IDX = sizeof(addr)-ADDR_BYTES;
@@ -113,13 +142,47 @@ private:
 			ret.push_back(reinterpret_cast<uint8_t*>(&addr)[i]);
 		}
 
-		for(auto datum : data)
+		// Size
+		ret.push_back(count);
+
+		return ret;
+
+	}
+
+	std::vector<uint8_t> data_to_uint8_t(std::vector<DATA_T> data)
+	{
+		std::vector<uint8_t> data_u8;
+		if(sizeof(DATA_T) != 1)
 		{
-			boost::endian::native_to_big_inplace(datum);
-			for(auto i=0u; i<sizeof(datum); i++)
+			for(auto datum : data)
 			{
-				ret.push_back(reinterpret_cast<uint8_t*>(&datum)[i]);
+				boost::endian::native_to_big_inplace(datum);
+				for(auto i=0u; i<sizeof(datum); i++)
+				{
+					data_u8.push_back(reinterpret_cast<uint8_t*>(&datum)[i]);
+				}
 			}
+		} else {
+			data_u8 =  data;
+		}
+		return data_u8;
+	}
+
+	std::vector<uint8_t> format_write_transaction(uintptr_t addr, std::vector<DATA_T> data)
+	{
+		std::vector<uint8_t> ret;
+
+		auto data_split = split_vector(data_to_uint8_t(data));
+		//std::cout << data_split.size() << std::endl;
+		for(auto part : data_split)
+		{
+			//std::cout << part.size() << std::endl;
+
+			auto meta = format_transaction_metadata(true, part.size(), addr);
+			ret.insert(ret.end(), meta.begin(), meta.end());
+
+			// Data
+			ret.insert(ret.end(), part.begin(), part.end());
 		}
 
 		return ret;

@@ -24,13 +24,16 @@ template<class DATA_T> class WbSpiWrapper : public SpiInterface
 		std::vector<uint8_t> xferSpi(std::vector<uint8_t> data) override
 		{
 			std::vector<uint8_t> ret;
-			// For now we will just do the really naive thing of one byte at a time
-			// Not a software limitation, but will help with firmware bringup
 			iface->write(1,{0}); // CS low
-			for(auto datum : data)
+			// For now, do 255 at a time
+			#warning "This is a stupid place to split it. The splitting logic is all broken"
+			// If a larger vector is passed into write, it will just try and write too much (e.g. a 258 sized vector)
+			// Splitting to 252 is a hack that gives us leg room for the three byte header
+			auto vecs = split_vector(data);
+			for(auto vec : vecs)
 			{
-				iface->write(2,{datum});
-				auto temp = iface->read(2,1);
+				iface->write(2,vec);
+				auto temp = iface->read(2,vec.size());
 				ret.insert(ret.end(), temp.begin(), temp.end());
 			}
 			iface->write(1,{1}); // CS high
@@ -38,6 +41,24 @@ template<class DATA_T> class WbSpiWrapper : public SpiInterface
 		}
 	private:
 		WbInterface<DATA_T> *iface;
+
+		// Temporary
+		// Copied and pasted from WbUart.hpp
+		std::vector<std::vector<uint8_t>> split_vector(std::vector<uint8_t> in)
+		{
+			constexpr unsigned int size = 252;
+
+			std::vector<std::vector<uint8_t>> ret;
+
+			unsigned int num = in.size()/size + (in.size()%size != 0);
+
+			for(auto i=0u; i<num; i++)
+			{
+				unsigned int cur_size = (i == num-1)? (in.size()%size? in.size()%size : 255 ) : size;
+				ret.push_back(std::vector<uint8_t>(in.begin()+i*size,in.begin()+(i*size)+cur_size));
+			}
+			return ret;
+		}
 
 };
 #endif
