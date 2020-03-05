@@ -34,7 +34,7 @@ template<class DATA_T, int ADDR_BITS> class WbUart : public WbInterface<DATA_T>
 {
 public:
 	WbUart(std::string dev_path, uint32_t baud)
-	:serial(dev_path, baud, serial::Timeout::simpleTimeout(10000))//serial::Timeout::max()))
+	:serial(dev_path, baud, serial::Timeout::simpleTimeout(100), serial::eightbits, serial::parity_none, serial::stopbits_one, serial::flowcontrol_hardware)//serial::Timeout::max()))
 	{
 		if(!serial.isOpen())
 		{
