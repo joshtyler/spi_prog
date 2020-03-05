@@ -2,6 +2,9 @@
 #define WB_INTERFACE_HPP
 // Interface to send data over a Wishbone bus
 
+#include <vector>
+#include <stdint.h>
+
 template<class DATA_T> class WbInterface
 {
 	public:

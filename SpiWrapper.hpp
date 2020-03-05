@@ -56,12 +56,14 @@ class SpiWrapper : public SpiInterface
 	public:
 		SpiWrapper(std::string devstr, enum ftdi_interface ifnum, uint16_t clockDivider);
 		~SpiWrapper();
-		std::vector<uint8_t> xferSpi(std::vector<uint8_t> data) override;
+		std::vector<uint8_t> transfer(std::vector<uint8_t> data) override;
+		void setCs(bool val) override;
+		void send(std::vector<uint8_t> data) override;
+		std::vector<uint8_t> receive(int num) override;
 
 	private:
 		void sendByte(uint8_t byte);
 		uint8_t recvByte(void);
-		void setSS(bool data);
 		void error(int status);
 		void checkRx(void);
 		uint8_t gpio_data;

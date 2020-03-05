@@ -67,7 +67,7 @@ SpiWrapper::SpiWrapper(std::string devstr, enum ftdi_interface ifnum, uint16_t c
 	sendByte((clockDivider >> 8) & 0xFF); //MSB
 
 	gpio_data = 0x20; // Power on SCK low
-	setSS(true); // Make slave select high
+	setCs(true); // Make slave select high
 
 	ftdi_write_data_set_chunksize(&ftdic, 1024*10);
 }
@@ -76,7 +76,7 @@ SpiWrapper::~SpiWrapper()
 {
 	fprintf(stderr, "Bye.\n");
 	gpio_data = 0; // All lines off
-	setSS(false);
+	setCs(false);
 
 	ftdi_set_latency_timer(&ftdic, ftdi_latency);
 	ftdi_disable_bitbang(&ftdic);
@@ -109,11 +109,11 @@ uint8_t SpiWrapper::recvByte(void)
 	return data;
 }
 
-void SpiWrapper::setSS(bool data)
+void SpiWrapper::setCs(bool val)
 {
 	uint8_t gpio = gpio_data;
 
-	if(data)
+	if(val)
 	{
 		// ADBUS4 (GPIOL0)
 		gpio |= 0x10;
@@ -124,13 +124,12 @@ void SpiWrapper::setSS(bool data)
 	sendByte(0x93); /* Direction */
 }
 
-std::vector<uint8_t> SpiWrapper::xferSpi(std::vector<uint8_t> data)
+std::vector<uint8_t> SpiWrapper::transfer(std::vector<uint8_t> data)
 {
 	std::vector<uint8_t> retVal;
 
 	if (data.size() > 0)
 	{
-		setSS(false);
 
 		/* Input and output, update data on negative edge read on positive. */
 		sendByte(MC_DATA_IN | MC_DATA_OUT | MC_DATA_OCN);
@@ -155,10 +154,19 @@ std::vector<uint8_t> SpiWrapper::xferSpi(std::vector<uint8_t> data)
 			offset += this_transfer;
 			to_transfer -= this_transfer;
 		}
-
-		setSS(true);
 	}
 	return retVal;
+}
+
+void SpiWrapper::send(std::vector<uint8_t> data)
+{
+	transfer(data);
+}
+
+std::vector<uint8_t> SpiWrapper::receive(int num)
+{
+	std::vector<uint8_t> dummy(num,0);
+	return transfer(dummy);
 }
 
 void SpiWrapper::error(int status)

@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 
 	std::unique_ptr<SpiInterface> ftdi_spi = NULL;
 	std::unique_ptr<WbUart<uint8_t,8>> uart = NULL;
-	std::unique_ptr<WbSpiWrapper<uint8_t>> wb_spi = NULL;
+	std::unique_ptr<WbSpiWrapper> wb_spi = NULL;
 	std::unique_ptr<EepromProg> prog = NULL;
 
 	try {
@@ -230,7 +230,7 @@ int main(int argc, char* argv[])
 			//uart = std::make_unique<decltype(uart)>("/dev/ttyUSB0", 115200); // Doesn't work
 			uart = std::make_unique<WbUart<uint8_t,8>>(result["uartdev"].as<std::string>(), 460800);
 
-			wb_spi = std::make_unique<WbSpiWrapper<uint8_t>>(uart.get(),result["compaddr"].as<int>());
+			wb_spi = std::make_unique<WbSpiWrapper>(uart.get(),result["compaddr"].as<int>());
 
 			prog = std::make_unique<EepromProg>(wb_spi.get());
 

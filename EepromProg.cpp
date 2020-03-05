@@ -8,18 +8,19 @@ std::vector<uint8_t> EepromProg::read(int addr, int num)
 {
 	waitUntilReady();
 
-	std::vector<uint8_t> transmit(num+4, 0xFF);
+	spi->setCs(false);
+	std::vector<uint8_t> transmit(4, 0xFF);
 	transmit[0] = static_cast<uint8_t>(SpiCmd::read);
 	transmit[1] = (addr >> 16) & 0xFF;
 	transmit[2] = (addr >> 8)  & 0xFF;
 	transmit[3] = (addr >> 0)  & 0xFF;
 
-	std::vector<uint8_t> result = spi->xferSpi(transmit);
+	spi->send(transmit);
 
-	// Remove first 4 elements as this is command and address
-	result.erase(result.begin(), result.begin() + 4);
+	auto ret = spi->receive(num);
+	spi->setCs(true);
 
-	return result;
+	return ret;
 }
 
 
@@ -30,7 +31,9 @@ std::vector<uint8_t> EepromProg::readId(void)
 	std::vector<uint8_t> transmit(10, 0xFF);
 	transmit[0] = static_cast<uint8_t>(SpiCmd::readId);
 
-	std::vector<uint8_t> result = spi->xferSpi(transmit);
+	spi->setCs(false);
+	std::vector<uint8_t> result = spi->transfer(transmit);
+	spi->setCs(true);
 
 	// Remove first element as this is the ID
 	result.erase(result.begin(), result.begin()+1);
@@ -41,7 +44,9 @@ std::vector<uint8_t> EepromProg::readId(void)
 void EepromProg::releasePowerDown(void)
 {
 	std::vector<uint8_t> transmit = {0xAB,0xFF,0xFF,0xFF,0xFF};
-	spi->xferSpi(transmit);
+	spi->setCs(false);
+	spi->send(transmit);
+	spi->setCs(true);
 }
 
 // Writes in page program mode
@@ -56,8 +61,8 @@ void EepromProg::write(int addr, std::vector<uint8_t>::iterator start, std::vect
 
 	waitUntilReady();
 	enableWriting();
-
 	waitUntilReady();
+
 	std::vector<uint8_t> transmit(4);
 	transmit[0] = static_cast<uint8_t>(SpiCmd::byteProgram);
 	transmit[1] = (addr >> 16) & 0xFF;
@@ -70,7 +75,9 @@ void EepromProg::write(int addr, std::vector<uint8_t>::iterator start, std::vect
 
 	//std::cout << "Write to " << addr << ". Size: " << (transmit.size()-4) << std::endl;
 
-	spi->xferSpi(transmit);
+	spi->setCs(false);
+	spi->send(transmit);
+	spi->setCs(true);
 }
 
 void EepromProg::chipErase(void)
@@ -80,7 +87,9 @@ void EepromProg::chipErase(void)
 
 	std::vector<uint8_t> transmit = {static_cast<uint8_t>(SpiCmd::chipErase)};
 
-	spi->xferSpi(transmit);
+	spi->setCs(false);
+	spi->send(transmit);
+	spi->setCs(true);
 }
 
 
@@ -89,7 +98,9 @@ uint8_t EepromProg::readStatusRegister(void)
 {
 	std::vector<uint8_t> transmit = {static_cast<uint8_t>(SpiCmd::readStatusRegister), 0xFF};
 
-	std::vector<uint8_t> result = spi->xferSpi(transmit);
+	spi->setCs(false);
+	std::vector<uint8_t> result = spi->transfer(transmit);
+	spi->setCs(true);
 
 	return result[1];
 }
@@ -116,12 +127,16 @@ void EepromProg::enableWriting(void)
 	{
 		{
 			std::vector<uint8_t> transmit = {static_cast<uint8_t>(SpiCmd::enableWriteStatusRegister)};
-			spi->xferSpi(transmit);
+			spi->setCs(false);
+			spi->send(transmit);
+			spi->setCs(true);
 		}
 
 		{
 			std::vector<uint8_t> transmit = {static_cast<uint8_t>(SpiCmd::writeStatusRegister), 0x00};
-			spi->xferSpi(transmit);
+			spi->setCs(false);
+			spi->send(transmit);
+			spi->setCs(true);
 		}
 	}
 
@@ -129,7 +144,9 @@ void EepromProg::enableWriting(void)
 	if((status & 0x1) == 0)
 	{
 		std::vector<uint8_t> transmit = {static_cast<uint8_t>(SpiCmd::writeEnable)};
-		spi->xferSpi(transmit);
+		spi->setCs(false);
+		spi->send(transmit);
+		spi->setCs(true);
 	}
 }
 
@@ -145,7 +162,9 @@ void EepromProg::sectorErase(int addr)
 	transmit[2] = (addr >> 8)  & 0xFF;
 	transmit[3] = (addr >> 0)  & 0xFF;
 
-	spi->xferSpi(transmit);
+	spi->setCs(false);
+	spi->send(transmit);
+	spi->setCs(true);
 
 	//sleep(4);
 

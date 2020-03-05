@@ -2,7 +2,7 @@
 CC=g++
 CXXFLAGS=-c -Wall  -g
 LDFLAGS=-lftdi -lserial
-SOURCES=SpiWrapper.cpp EepromProg.cpp spi_prog.cpp
+SOURCES=WbSpiWrapper.cpp SpiWrapper.cpp EepromProg.cpp spi_prog.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=spi_prog
 
