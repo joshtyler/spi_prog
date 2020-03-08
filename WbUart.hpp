@@ -34,7 +34,7 @@ template<class DATA_T, int ADDR_BITS> class WbUart : public WbInterface<DATA_T>
 {
 public:
 	WbUart(std::string dev_path, uint32_t baud)
-	:serial(dev_path, baud, serial::Timeout::simpleTimeout(100), serial::eightbits, serial::parity_none, serial::stopbits_one, serial::flowcontrol_hardware)//serial::Timeout::max()))
+	:serial(dev_path, baud, serial::Timeout::simpleTimeout(1000), serial::eightbits, serial::parity_none, serial::stopbits_one, serial::flowcontrol_hardware)//serial::Timeout::max()))
 	{
 		if(!serial.isOpen())
 		{
@@ -171,6 +171,7 @@ private:
 	std::vector<uint8_t> format_write_transaction(uintptr_t addr, std::vector<DATA_T> data)
 	{
 		std::vector<uint8_t> ret;
+		ret.reserve(data.size()*sizeof(DATA_T));
 
 		auto data_split = split_vector(data_to_uint8_t(data));
 		//std::cout << data_split.size() << std::endl;
