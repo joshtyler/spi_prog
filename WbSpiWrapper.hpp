@@ -27,10 +27,5 @@ class WbSpiWrapper : public SpiInterface
 
 	private:
 		WbInterface<uint8_t> *iface;
-
-		// Temporary
-		// Copied and pasted from WbUart.hpp
-		std::vector<std::vector<uint8_t>> split_vector(std::vector<uint8_t> in);
-
 };
 #endif

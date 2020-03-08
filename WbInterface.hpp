@@ -9,7 +9,7 @@ template<class DATA_T> class WbInterface
 {
 	public:
 		virtual ~WbInterface() {};
-		virtual void write(uintptr_t addr, std::vector<DATA_T> data) = 0;
+		virtual void write(uintptr_t addr, typename std::vector<DATA_T>::iterator begin, typename std::vector<DATA_T>::iterator end) = 0;
 		virtual std::vector<DATA_T> read(uintptr_t addr, size_t num) = 0;
 };
 #endif

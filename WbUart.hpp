@@ -15,20 +15,13 @@
 
 #include <serial/serial.h> //https://github.com/wjwwood/serial
 
+#include "utility.h"
 #include "WbInterface.hpp"
 
 class WbUartException : public std::runtime_error
 {
 	using std::runtime_error::runtime_error;
 };
-
-static inline void print_vec(std::vector<uint8_t> in)
-{
-	std::cout << "Size " << std::dec << in.size() << ". Data: " << std::hex;
-	for(auto datum : in)
-		std::cout << "0x" << (int) datum << ", ";
-	std::cout << std::dec << std::endl;
-}
 
 template<class DATA_T, int ADDR_BITS> class WbUart : public WbInterface<DATA_T>
 {
@@ -42,20 +35,37 @@ public:
 		}
 	};
 
-	virtual void write(uintptr_t addr, std::vector<DATA_T> data) override
+	virtual void write(uintptr_t addr, typename std::vector<DATA_T>::iterator begin, typename std::vector<DATA_T>::iterator end) override
 	{
-		auto packet = format_write_transaction(addr, data);
-		#ifdef DEBUG_PRINTS
-		std::cout << "(wr) Sending packet. ";
-		print_vec(packet);
-		#endif
-		serial.write(packet);
+		auto cur_iter = begin;
+		while(cur_iter != end)
+		{
+			auto next_iter = chunk<DATA_T>(cur_iter, end, 255);
+			auto len = next_iter-cur_iter;
+			auto meta = format_transaction_metadata(true, len, addr);
+			#ifdef DEBUG_PRINTS
+			std::cout << "(wr) Sending meta. ";
+			print_vec(meta);
+			#endif
+			serial.write(meta);
+
+			#ifdef DEBUG_PRINTS
+			std::cout << "(wr) Sending data. ";
+			uint8_t * dat_ptr = (&*cur_iter);
+			std::vector<uint8_t> temp_data(dat_ptr, dat_ptr+len);
+			print_vec(temp_data);
+			#endif
+			serial.write(&*cur_iter, len); // N.B. Little hack to go from iterator to raw pointer
+
+			cur_iter = next_iter;
+		}
 	};
 
 	virtual std::vector<DATA_T> read(uintptr_t addr, size_t num) override
 	{
 
 		std::vector<DATA_T> ret;
+		ret.reserve(num);
 
 		for(auto i=0u; i<num; i+=255)
 		{
@@ -86,6 +96,7 @@ public:
 			std::cout << "(rd)Got packet. ";
 			print_vec(part);
 			#endif
+			
 			ret.insert(ret.end(), part.begin(), part.end());
 		}
 		return ret;
@@ -93,22 +104,6 @@ public:
 
 private:
 	serial::Serial serial;
-
-	std::vector<std::vector<uint8_t>> split_vector(std::vector<uint8_t> in)
-	{
-		constexpr unsigned int size = 255;
-
-		std::vector<std::vector<uint8_t>> ret;
-
-		unsigned int num = in.size()/size + (in.size()%size != 0);
-
-		for(auto i=0u; i<num; i++)
-		{
-			unsigned int cur_size = (i == num-1)? (in.size()%size? in.size()%size : 255 ) : size;
-			ret.push_back(std::vector<uint8_t>(in.begin()+i*size,in.begin()+(i*size)+cur_size));
-		}
-		return ret;
-	}
 
 	std::vector<uint8_t> format_transaction_metadata(bool write, uint8_t count, uintptr_t addr)
 	{
@@ -166,28 +161,6 @@ private:
 			data_u8 =  data;
 		}
 		return data_u8;
-	}
-
-	std::vector<uint8_t> format_write_transaction(uintptr_t addr, std::vector<DATA_T> data)
-	{
-		std::vector<uint8_t> ret;
-		ret.reserve(data.size()*sizeof(DATA_T));
-
-		auto data_split = split_vector(data_to_uint8_t(data));
-		//std::cout << data_split.size() << std::endl;
-		for(auto part : data_split)
-		{
-			//std::cout << part.size() << std::endl;
-
-			auto meta = format_transaction_metadata(true, part.size(), addr);
-			ret.insert(ret.end(), meta.begin(), meta.end());
-
-			// Data
-			ret.insert(ret.end(), part.begin(), part.end());
-		}
-
-		return ret;
-
 	}
 };
 #endif

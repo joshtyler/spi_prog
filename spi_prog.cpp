@@ -2,11 +2,6 @@
 
 // Requires : libftdi1, cxxopts, boost (for progress.hpp)
 
-#include "SpiWrapper.hpp"
-#include "EepromProg.hpp"
-#include "WbUart.hpp"
-#include "WbSpiWrapper.hpp"
-
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -16,20 +11,11 @@
 
 #include "ftdi.h"
 
-void print_data(std::vector<uint8_t> data)
-{
-	for(unsigned int i = 0; i < data.size(); i++)
-	{
-		if(i > 0)
-		{
-			std::cout << ", ";
-		}
-
-		std::cout << std::hex << (int)data[i] << std::dec;
-	}
-
-	std::cout << std::endl;
-}
+#include "SpiWrapper.hpp"
+#include "EepromProg.hpp"
+#include "WbUart.hpp"
+#include "WbSpiWrapper.hpp"
+#include "utility.h"
 
 // Return index of first non number, or decimal point in string
 // Returns -1 if none

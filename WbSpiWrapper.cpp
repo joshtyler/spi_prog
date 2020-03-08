@@ -1,5 +1,7 @@
 #include "WbSpiWrapper.hpp"
 
+#include "utility.h"
+
 WbSpiWrapper::WbSpiWrapper(WbInterface<uint8_t> *iface, uintptr_t base_addr)
 :iface(iface)
 {
@@ -9,16 +11,18 @@ WbSpiWrapper::WbSpiWrapper(WbInterface<uint8_t> *iface, uintptr_t base_addr)
 std::vector<uint8_t> WbSpiWrapper::transfer(std::vector<uint8_t> data)
 {
 	std::vector<uint8_t> ret;
-	// For now, do 255 at a time
-	#warning "This is a stupid place to split it. The splitting logic is all broken"
-	// If a larger vector is passed into write, it will just try and write too much (e.g. a 258 sized vector)
-	// Splitting to 252 is a hack that gives us leg room for the three byte header
-	auto vecs = split_vector(data);
-	for(auto vec : vecs)
+	ret.reserve(data.size());
+	// The SPI block only has 255 words of memory inside, so we need to chunk to this amount
+
+	auto cur_iter = data.begin();
+	while(cur_iter != data.end())
 	{
-		iface->write(2,vec);
-		auto temp = iface->read(2,vec.size());
+		auto next_iter = chunk<uint8_t>(cur_iter, data.end(),255);
+		auto len = next_iter-cur_iter;
+		iface->write(2, data.begin(), data.end());
+		auto temp = iface->read(2,len);
 		ret.insert(ret.end(), temp.begin(), temp.end());
+		cur_iter = next_iter;
 	}
 	return ret;
 }
@@ -33,49 +37,34 @@ void WbSpiWrapper::setCs(bool val)
 	} else {
 		reg &= 0xFE;
 	}
-	iface->write(1,{reg});
+	std::vector<uint8_t> wr = {reg};
+	iface->write(1,wr.begin(), wr.end());
 }
 
 void WbSpiWrapper::send(std::vector<uint8_t> data)
 {
-	iface->write(1,{0x2}); // We know CS must be low. Set to discard data
-	iface->write(2,data);
-	iface->write(1,{0x0}); // We know CS must be low.
+	std::vector<uint8_t> wr = {0x2};
+	iface->write(1,wr.begin(), wr.end()); // We know CS must be low. Set to discard data
+	iface->write(2,data.begin(), data.end());
+	wr = {0x0};
+	iface->write(1,wr.begin(), wr.end());// We know CS must be low.
 }
 
 std::vector<uint8_t> WbSpiWrapper::receive(int num)
 {
 	std::vector<uint8_t> ret;
-	constexpr unsigned int size = 252;
-	// For now, do 255 at a time
-	#warning "This is a stupid place to split it. The splitting logic is all broken"
-	// If a larger vector is passed into write, it will just try and write too much (e.g. a 258 sized vector)
-	// Splitting to 252 is a hack that gives us leg room for the three byte header
+	ret.reserve(num);
+
+	// Because we can only inject 255 dummy bytes at a time, we need to chunk here into chunks of 255
+	constexpr unsigned int size = 255;
 	unsigned int numTxns = num/size + (num%size != 0);
 	for(auto i=0u; i<numTxns; i++)
 	{
 		unsigned int cur_size = (i == numTxns-1)? (num%size? num%size : 255 ) : size;
-		iface->write(3,{cur_size}); // Set to inject bytes
+		std::vector<uint8_t> wr = {cur_size};
+		iface->write(3,wr.begin(), wr.end());// Set to inject bytes
 		auto temp = iface->read(2,cur_size);
 		ret.insert(ret.end(), temp.begin(), temp.end());
-	}
-	return ret;
-}
-
-// Temporary
-// Copied and pasted from WbUart.hpp
-std::vector<std::vector<uint8_t>> WbSpiWrapper::split_vector(std::vector<uint8_t> in)
-{
-	constexpr unsigned int size = 252;
-
-	std::vector<std::vector<uint8_t>> ret;
-
-	unsigned int num = in.size()/size + (in.size()%size != 0);
-
-	for(auto i=0u; i<num; i++)
-	{
-		unsigned int cur_size = (i == num-1)? (in.size()%size? in.size()%size : 255 ) : size;
-		ret.push_back(std::vector<uint8_t>(in.begin()+i*size,in.begin()+(i*size)+cur_size));
 	}
 	return ret;
 }
