@@ -33,9 +33,9 @@ class EepromProg
 		void sectorErase(int addr);
 		void program(int addr, std::vector<uint8_t> data);
 		void releasePowerDown(void);
+		uint8_t readStatusRegister(int reg=1);
 
 	private:
-		uint8_t readStatusRegister(void);
 		void waitUntilReady(void);
 		void enableWriting(void);
 
@@ -49,7 +49,9 @@ class EepromProg
 			read = 0x03,
 			chipErase = 0xC7,
 			byteProgram = 0x02,
-			readStatusRegister = 0x05,
+			readStatusRegister1 = 0x05,
+			readStatusRegister2 = 0x35,
+			readStatusRegister3 = 0x15,
 			enableWriteStatusRegister = 0x50,
 			writeStatusRegister = 0x01,
 			writeEnable = 0x06,

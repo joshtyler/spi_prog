@@ -94,9 +94,18 @@ void EepromProg::chipErase(void)
 
 
 
-uint8_t EepromProg::readStatusRegister(void)
+uint8_t EepromProg::readStatusRegister(int reg)
 {
-	std::vector<uint8_t> transmit = {static_cast<uint8_t>(SpiCmd::readStatusRegister), 0xFF};
+	SpiCmd cmd;
+	switch(reg)
+	{
+		case 1 : cmd = SpiCmd::readStatusRegister1; break;
+		case 2 : cmd = SpiCmd::readStatusRegister2; break;
+		case 3 : cmd = SpiCmd::readStatusRegister3; break;
+		default : throw EepromException("Attempt to read invalid status register");
+	}
+
+	std::vector<uint8_t> transmit = {static_cast<uint8_t>(cmd), 0xFF};
 
 	spi->setCs(false);
 	std::vector<uint8_t> result = spi->transfer(transmit);

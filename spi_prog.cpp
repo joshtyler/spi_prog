@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <ctype.h>
 
@@ -77,18 +78,20 @@ int main(int argc, char* argv[])
 
 	std::vector<std::string> optionGroups = {"", "FTDI mode. Use with -t FTDI", "wbuart mode. Use with -t wbuart"};
 	try {
-		cxxopts::Options options(argv[0], "Simple programmer for SPI EEPROMs");
+		cxxopts::Options options(argv[0], "Simple programmer for SPI EEPROMs. Multiple operations are supported, and are executed in the order listed in -h");
 		options.add_options(optionGroups[0])
-			("h,help",    "Print help")
-			("m,mode",    "Which device will do the programming. FTDI or wbuart",cxxopts::value<std::string>())
-			("d,readid",  "Read the ID bytes of the EEPROM")
-			("r,read",    "Read EEPROM to file")
-			("w,write",   "Write a file to the EEPROM")
-			("v,verify",  "Verify against a file")
-			("a,address", "Address to read from/write to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
-			("i,infile",  "File to write to flash/verify against (use with -w or -v)", cxxopts::value<std::string>())
-			("o,outfile", "File to save data read from flash to (use with -r)")
-			("l,readlen", "Length to read back from EEPROM. (use with -r, but not -w or -v. In these cases lengh is implicit)")
+			("h,help",         "Print help")
+			("m,mode",         "Which device will do the programming. FTDI or wbuart",cxxopts::value<std::string>())
+			("d,readid",       "Read the ID bytes of the EEPROM")
+			("s,readstatregs", "Read the status registers")
+			("c,customcmd",    "Execute a custom command (comma separated values, no whitespace)",cxxopts::value<std::vector<uint8_t>>())
+			("w,write",        "Write a file to the EEPROM")
+			("r,read",         "Read EEPROM to file")
+			("v,verify",       "Verify against a file")
+			("a,address",      "Address to read from/write to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
+			("i,infile",       "File to write to flash/verify against (use with -w or -v)", cxxopts::value<std::string>())
+			("o,outfile",      "File to save data read from flash to (use with -r)")
+			("l,readlen",      "Length to read back from EEPROM. (use with -r, but not -w or -v. In these cases lengh is implicit)")
 			;
 
 		options.add_options(optionGroups[1])
@@ -116,10 +119,17 @@ int main(int argc, char* argv[])
 		// Check arguments
 		std::string mode = tryParse<std::string>(result, "mode");
 
-		bool readId = result.count("readid");
-		bool read   = result.count("read");
-		bool write  = result.count("write");
-		bool verify = result.count("verify");
+		// Get commands
+		bool readId       = result.count("readid");
+		bool readStatRegs = result.count("readstatregs");
+		std::optional<std::vector<uint8_t>> customCmd;
+		if(result.count("customcmd"))
+		{
+			customCmd = result["customcmd"].as<std::vector<uint8_t>>();
+		}
+		bool write        = result.count("write");
+		bool read         = result.count("read");
+		bool verify       = result.count("verify");
 
 		int address = tryParse<int>(result, "address", read or write or verify);
 
@@ -127,7 +137,7 @@ int main(int argc, char* argv[])
 		std::string outFile = tryParse<std::string>(result, "outfile", read);
 		int readLen = tryParse<int>(result, "readlen", read and (not(write or verify)));
 
-		if(not (readId or write or read or verify))
+		if(not (readId or readStatRegs or write or read or verify))
 		{
 			throw cxxopts::OptionException("No action selected");
 		}
@@ -136,9 +146,8 @@ int main(int argc, char* argv[])
 		mode = ParseUtility::toLower(mode);
 
 		// Pointers are constructed here so they have correct scope
-		std::unique_ptr<SpiInterface> ftdi_spi = NULL;
+		std::unique_ptr<SpiInterface> spi = NULL;
 		std::unique_ptr<WbUart<uint8_t,8>> uart = NULL;
-		std::unique_ptr<WbSpiWrapper> wb_spi = NULL;
 		std::unique_ptr<EepromProg> prog = NULL;
 		// Perform target specific arument parsing
 		if(mode == "ftdi")
@@ -196,8 +205,8 @@ int main(int argc, char* argv[])
 				std::cerr << "WARNING: Could not calculate divider for requested frequency. Using " << actualFreq/1e6 << "MHz" << std::endl;
 			}
 
-			ftdi_spi = std::make_unique<SpiWrapper>(ftdiDev, iface, freqDivider);
-			prog = std::make_unique<EepromProg>(ftdi_spi.get());
+			spi = std::make_unique<SpiWrapper>(ftdiDev, iface, freqDivider);
+			prog = std::make_unique<EepromProg>(spi.get());
 
 		} else if(mode == "wbuart") {
 
@@ -206,8 +215,8 @@ int main(int argc, char* argv[])
 			int compAddr = tryParse<int>(result, "compaddr");
 
 			uart = std::make_unique<WbUart<uint8_t,8>>(uartDev, baud);
-			wb_spi = std::make_unique<WbSpiWrapper>(uart.get(),compAddr);
-			prog = std::make_unique<EepromProg>(wb_spi.get());
+			spi = std::make_unique<WbSpiWrapper>(uart.get(),compAddr);
+			prog = std::make_unique<EepromProg>(spi.get());
 
 		} else {
 			throw cxxopts::OptionException("Invalid mode: "+mode);
@@ -230,6 +239,28 @@ int main(int argc, char* argv[])
 			std::vector<uint8_t> data = prog->readId();
 			std::cout << "Received ID: ";
 			VectorUtility::print(data);
+		}
+
+		if(readStatRegs)
+		{
+			std::cout << "Read Status registers" << std::endl;
+			for(int i=1; i<=3; i++)
+			{
+				std::cout << "Status register " << i << ": 0x" << std::hex << std::setfill('0') << std::setw(2) << (int) prog->readStatusRegister(i) << std::dec << std::endl;
+			}
+		}
+
+		if(customCmd)
+		{
+			std::cout << "Writing custom command: ";
+			VectorUtility::print(*customCmd);
+
+			spi->setCs(false);
+			auto result = spi->transfer(*customCmd);
+			spi->setCs(true);
+
+			std::cout << "Result: ";
+			VectorUtility::print(result);
 		}
 
 
