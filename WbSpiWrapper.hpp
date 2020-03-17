@@ -27,5 +27,6 @@ class WbSpiWrapper : public SpiInterface
 
 	private:
 		WbInterface<uint8_t> *iface;
+		uintptr_t base_addr;
 };
 #endif

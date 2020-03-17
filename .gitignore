@@ -1,3 +1,4 @@
 spi_prog
 debug
 *.o
+.depend

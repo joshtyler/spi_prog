@@ -11,104 +11,97 @@
 
 #include "ftdi.h"
 
+#include "ParseUtility.h"
+#include "FileUtility.h"
+#include "VectorUtility.h"
+
 #include "SpiWrapper.hpp"
 #include "EepromProg.hpp"
 #include "WbUart.hpp"
 #include "WbSpiWrapper.hpp"
-#include "utility.h"
 
-// Return index of first non number, or decimal point in string
-// Returns -1 if none
-int findNonDigit(std::string str)
+// Try and parse an argument
+// If present, return argument
+// If not present:
+	// If required, return default constructed object
+	// If requiredt, throw OptionException
+template <typename T> T tryParse(const cxxopts::ParseResult &result, std::string arg, bool required=true)
 {
-	for(auto i=0; i < (int)str.size(); i++)
+	T ret;
+	if(result.count(arg))
 	{
-			if(not (isdigit(str[i]) or str[i] == '.'))
-			{
-				return i;
-			}
+		ret = result[arg].as<T>();
+	} else {
+		if(required)
+		{
+			throw cxxopts::OptionException("Did not specify "+arg);
+		}
 	}
-	return -1;
+	return ret;
 }
 
-double parseFreq(std::string str)
+// Parse an FTDI interface string
+// Not a very C++ way of doing it, but we have to parse to the ftdi.h format
+enum ftdi_interface parseFtdiInterface(std::string str)
 {
-	// If all numbers, parse directly
-	int idx = findNonDigit(str);
-	if(idx == -1)
+	enum ftdi_interface ret;
+	if(str.size() == 1)
 	{
-		return std::atof(str.c_str());
-	}
-
-	// If the first character is not a number
-	if(idx == 0)
-	{
-		throw cxxopts::OptionException("Frequency is invalid format");
-	}
-
-	// Split string into number and multiplier
-	double num = std::atof(str.substr(0,idx).c_str());
-	std::string multStr = str.substr(idx);
-	// Convert multipler to all uppercase
-	// ( We won't be so pedantic as to reject mis-capitalisations  :) )
-	for(auto& c : multStr)
-	{
-		c = toupper(c);
-	}
-
-	double mult;
-	if(multStr.length() == 1 or multStr.length() == 3 )
-	{
-		if(multStr.length() == 3 and multStr.substr(1) != "HZ")
+		switch(toupper(str[0]))
 		{
-			throw cxxopts::OptionException("Frequency is invalid format");
+			case 'A':
+				ret = INTERFACE_A;
+				break;
+			case 'B':
+				ret = INTERFACE_B;
+				break;
+			case 'C':
+				ret = INTERFACE_C;
+				break;
+			case 'D':
+				ret = INTERFACE_D;
+				break;
+			default:
+				throw cxxopts::OptionException("Invalid FTDI interface selected");
 		}
-		switch(multStr[0])
-		{
-			case 'K': mult = 1e3; break;
-			case 'M': mult = 1e6; break;
-			case 'G': mult = 1e9; break;
-			default: throw cxxopts::OptionException("Frequency is invalid format");
-		}
-	} else if(multStr == "HZ") {
-		mult = 1;
 	} else {
-		throw cxxopts::OptionException("Frequency is invalid format");
+		throw cxxopts::OptionException("Invalid FTDI interface selected");
 	}
-	return mult*num;
+	return ret;
 }
 
 int main(int argc, char* argv[])
 {
 	//Parse arguments
-	std::string filename;
-	int addr;
-	bool readId;
-	bool write;
-	bool verify;
+	// N.B. for simple verification arguments are constructed/pasesed in order
 
-	std::unique_ptr<SpiInterface> ftdi_spi = NULL;
-	std::unique_ptr<WbUart<uint8_t,8>> uart = NULL;
-	std::unique_ptr<WbSpiWrapper> wb_spi = NULL;
-	std::unique_ptr<EepromProg> prog = NULL;
-
+	std::vector<std::string> optionGroups = {"", "FTDI mode. Use with -t FTDI", "wbuart mode. Use with -t wbuart"};
 	try {
-		cxxopts::Options options("spi_prog", "Simple programmer for SPI EEPROMs");
-		options.add_options()
-			("f,file",    "File to program", cxxopts::value<std::string>())
-			("t,target",  "Which device will do the programming. FTDI or wbuart",cxxopts::value<std::string>()->default_value("ftdi"))
-			("d,device",  "[FTDI mode] Device string, in ftdi_usb_open_string() format.",cxxopts::value<std::string>()->default_value("i:0x0403:0x6010"))
-			("interface", "[FTDI mode] Used for mult-interface FTDI chips: A,B,C or D",cxxopts::value<std::string>()->default_value("A"))
-			("xtal",      "[FTDI mode] frequency either 60MHz or 12MHz. Used for clock divider calculation",cxxopts::value<std::string>()->default_value("12MHz"))
-			("freq",      "[FTDI mode] Desired programming frequency. Max 6MHz for 12MHz clock. Max 30MHz for 60MHz clock",cxxopts::value<std::string>()->default_value("6MHz"))
-			("uartdev",   "[wbuart mode] Serial port device string", cxxopts::value<std::string>())
-			("baud",      "[wbuart mode] Serial port baud rate", cxxopts::value<int>())
-			("compaddr",  "[wbuart mode] Address of wishbone SPI component", cxxopts::value<int>())
-			("a,address", "Address to write file to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
-			("i,readid",  "Read the ID bytes of the EEPROM")
+		cxxopts::Options options(argv[0], "Simple programmer for SPI EEPROMs");
+		options.add_options(optionGroups[0])
+			("h,help",    "Print help")
+			("m,mode",    "Which device will do the programming. FTDI or wbuart",cxxopts::value<std::string>())
+			("d,readid",  "Read the ID bytes of the EEPROM")
+			("r,read",    "Read EEPROM to file")
 			("w,write",   "Write a file to the EEPROM")
 			("v,verify",  "Verify against a file")
-			("h,help",    "Print help")
+			("a,address", "Address to read from/write to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
+			("i,infile",  "File to write to flash/verify against (use with -w or -v)", cxxopts::value<std::string>())
+			("o,outfile", "File to save data read from flash to (use with -r)")
+			("l,readlen", "Length to read back from EEPROM. (use with -r, but not -w or -v. In these cases lengh is implicit)")
+			;
+
+		options.add_options(optionGroups[1])
+			("ftdidev",   "Device string, in ftdi_usb_open_string() format.",cxxopts::value<std::string>()->default_value("i:0x0403:0x6010"))
+			("iface",     "Used for mult-interface FTDI chips: A,B,C or D",cxxopts::value<std::string>()->default_value("A"))
+			("xtalFreq",  "FTDI IC crystal frequency either 60MHz or 12MHz. Used for clock divider calculation",cxxopts::value<std::string>()->default_value("12MHz"))
+			("progfreq",  "Desired programming frequency. Max 6MHz for 12MHz clock. Max 30MHz for 60MHz clock",cxxopts::value<std::string>()->default_value("6MHz"))
+			;
+
+		options.add_options(optionGroups[2])
+			("uartdev",   "Serial port device string", cxxopts::value<std::string>())
+			("baud",      "Serial port baud rate", cxxopts::value<int>())
+			("compaddr",  "Address of wishbone SPI component", cxxopts::value<int>())
 			;
 
 		auto result = options.parse(argc, argv);
@@ -116,85 +109,78 @@ int main(int argc, char* argv[])
 		// Print help if requested
 		if (result.count("help"))
 		{
-			std::cout << options.help({"", "Group"}) << std::endl;
+			std::cout << options.help(optionGroups) << std::endl;
 			exit(0);
 		}
-		readId = result.count("readid");
-		write = result.count("write");
-		verify = result.count("verify");
 
-		addr = result["address"].as<int>();
+		// Check arguments
+		std::string mode = tryParse<std::string>(result, "mode");
 
-		if(result.count("file"))
-		{
-			filename = result["file"].as<std::string>();
-		} else {
-			if(write or verify)
-			{
-				throw cxxopts::OptionException("Did not specify filename");
-			}
-		}
+		bool readId = result.count("readid");
+		bool read   = result.count("read");
+		bool write  = result.count("write");
+		bool verify = result.count("verify");
 
-		if(not (readId or write or verify))
+		int address = tryParse<int>(result, "address", read or write or verify);
+
+		std::string inFile = tryParse<std::string>(result, "infile", write or verify);
+		std::string outFile = tryParse<std::string>(result, "outfile", read);
+		int readLen = tryParse<int>(result, "readlen", read and (not(write or verify)));
+
+		if(not (readId or write or read or verify))
 		{
 			throw cxxopts::OptionException("No action selected");
 		}
 
-		auto target = result["target"].as<std::string>();
-		// Convert to all lower case
-		std::transform(target.begin(), target.end(), target.begin(), [](unsigned char c){return std::tolower(c);});
-		if(target == "ftdi")
+		// Convert target to all lower case for more tolerant parsing
+		mode = ParseUtility::toLower(mode);
+
+		// Pointers are constructed here so they have correct scope
+		std::unique_ptr<SpiInterface> ftdi_spi = NULL;
+		std::unique_ptr<WbUart<uint8_t,8>> uart = NULL;
+		std::unique_ptr<WbSpiWrapper> wb_spi = NULL;
+		std::unique_ptr<EepromProg> prog = NULL;
+		// Perform target specific arument parsing
+		if(mode == "ftdi")
 		{
-			std::string deviceString;
-			enum ftdi_interface ifNum;
-			uint16_t freqDivider; //Frequency divider for SPI interface
-
-			deviceString = result["device"].as<std::string>();
-
-			std::string ifStr = result["interface"].as<std::string>();
-			if(ifStr.size() == 1)
+			std::string ftdiDev = tryParse<std::string>(result, "ftdidev");
+			enum ftdi_interface iface = parseFtdiInterface(tryParse<std::string>(result, "iface"));
+			double xtalFreq;
+			auto maybeXtalFreq = ParseUtility::parseFreq(tryParse<std::string>(result, "xtalfreq"));
+			if(maybeXtalFreq)
 			{
-				switch(toupper(ifStr[0]))
-				{
-					case 'A':
-						ifNum = INTERFACE_A;
-						break;
-					case 'B':
-						ifNum = INTERFACE_B;
-						break;
-					case 'C':
-						ifNum = INTERFACE_C;
-						break;
-					case 'D':
-						ifNum = INTERFACE_D;
-						break;
-					default:
-						throw cxxopts::OptionException("Invalid interface selected");
-				}
+				xtalFreq = *maybeXtalFreq;
 			} else {
-				throw cxxopts::OptionException("Invalid interface selected");
+				throw cxxopts::OptionException("Could not parse xtalfreq");
+			}
+			double progFreq;
+			auto maybeProgFreq = ParseUtility::parseFreq(tryParse<std::string>(result, "progfreq"));
+			if(maybeXtalFreq)
+			{
+				progFreq = *maybeProgFreq;
+			} else {
+				throw cxxopts::OptionException("Could not parse progfreq");
 			}
 
 			// Calculate clock divider
-			double xtal = parseFreq(result["xtal"].as<std::string>());
-			if(not (xtal == 60e6 or xtal == 12e6 ))
+			if(not (xtalFreq == 60e6 or xtalFreq == 12e6 ))
 			{
 				throw cxxopts::OptionException("Invalid xtal frequency. Only 60MHz or 12MHz is valid");
 			}
 
-			double progFreq = parseFreq(result["freq"].as<std::string>());
 			if(progFreq <= 0)
 			{
 				throw cxxopts::OptionException("Invalid programming frequency.");
 			}
+			uint16_t freqDivider; //Frequency divider for SPI interface
 			// From FTDI MPSSE Basics p.9:
 			// data speed = [xtal speed] / ((1+Divisor)*2)
 			// divisor = ([xtal speed]/(2*[data speed]))-1
-			if(progFreq >= xtal/2.0)
+			if(progFreq >= xtalFreq/2.0)
 			{
 				freqDivider = 0x0000;
 			} else {
-				double divider = (xtal / (2.0*progFreq)) -1.0;
+				double divider = (xtalFreq / (2.0*progFreq)) -1.0;
 
 				if(divider > (double)0xFFFF)
 				{
@@ -204,83 +190,100 @@ int main(int argc, char* argv[])
 				}
 		}
 
-			double actualFreq = xtal / ((1+ ((double)freqDivider))*2.0);
+			double actualFreq = xtalFreq / ((1+ ((double)freqDivider))*2.0);
 			if(actualFreq != progFreq)
 			{
-				std::cerr << "Could not calculate divider for requested frequency. Using " << actualFreq/1e6 << "MHz" << std::endl;
+				std::cerr << "WARNING: Could not calculate divider for requested frequency. Using " << actualFreq/1e6 << "MHz" << std::endl;
 			}
-			ftdi_spi = std::make_unique<SpiWrapper>(deviceString, ifNum, freqDivider);
+
+			ftdi_spi = std::make_unique<SpiWrapper>(ftdiDev, iface, freqDivider);
 			prog = std::make_unique<EepromProg>(ftdi_spi.get());
 
-		} else if(target == "wbuart") {
+		} else if(mode == "wbuart") {
 
-			//uart = std::make_unique<decltype(uart)>("/dev/ttyUSB0", 115200); // Doesn't work
-			uart = std::make_unique<WbUart<uint8_t,8>>(result["uartdev"].as<std::string>(), result["baud"].as<int>());
+			std::string uartDev = tryParse<std::string>(result, "uartdev");
+			int baud = tryParse<int>(result, "baud");
+			int compAddr = tryParse<int>(result, "compaddr");
 
-			wb_spi = std::make_unique<WbSpiWrapper>(uart.get(),result["compaddr"].as<int>());
-
+			uart = std::make_unique<WbUart<uint8_t,8>>(uartDev, baud);
+			wb_spi = std::make_unique<WbSpiWrapper>(uart.get(),compAddr);
 			prog = std::make_unique<EepromProg>(wb_spi.get());
 
 		} else {
-			throw cxxopts::OptionException("Invalid target");
+			throw cxxopts::OptionException("Invalid mode: "+mode);
 		}
 
+		// Arguments are now parsed, we can do the real work
+
+		std::vector<uint8_t> dataIn;
+		if(write or verify)
+		{
+			dataIn = FileUtility::readToVector(inFile);
+		}
+
+		// Release powerdown in case chip is asleep
+		 prog->releasePowerDown();
+
+		if(readId)
+		{
+			std::cout << "Read ID" << std::endl;
+			std::vector<uint8_t> data = prog->readId();
+			std::cout << "Received ID: ";
+			VectorUtility::print(data);
+		}
+
+
+		if(write)
+		{
+			std::cout << "Write to " << address << std::endl;
+			prog->program(address, dataIn);
+		}
+
+		std::vector<uint8_t> dataOut;
+		if(read or verify)
+		{
+			std::cout << "Read from " << address << std::endl;
+
+			if(write or verify)
+			{
+				readLen = dataIn.size();
+				std::cout << "Size from read data (" << readLen << ")" << std::endl;
+			} else {
+				std::cout << "Size from arguments (" << readLen << ")" << std::endl;
+			}
+
+			dataOut = prog->read(address,readLen);
+
+			if(read)
+			{
+				FileUtility::writeFromVector(outFile, dataOut);
+			}
+		}
+
+		if(verify)
+		{
+			std::cout << "Verifying data" << std::endl;
+
+			if(dataOut == dataIn)
+			{
+				std::cout << "Data verified correctly" << std::endl;
+			} else {
+				std::cout << "WARNING: Verifcation error" << std::endl;
+				return -1;
+			}
+		}
+
+		std::cout << "Done!" << std::endl;
+
+
+	// The catch here is slightly lazy
+	// It keeps the parsed arguments in scope
+	// Thus avoiding separate delaration and use
 	} catch (const cxxopts::OptionException& e)
 	{
-	std::cerr << "error parsing options: " << e.what() << std::endl;
-	exit(1);
-	}
-
-	std::vector<uint8_t> dataIn;
-	if(write or verify)
-	{
-		// Read the input data into an array
-		std::ifstream is;
-			// Get size of input file
-		is.open(filename, std::ios::binary);
-		is.seekg(0, std::ios::end);
-		size_t filesize=is.tellg();
-		is.seekg(0, std::ios::beg);
-			// Size vector to input file
-		dataIn.resize(filesize/sizeof(uint8_t));
-			// Read from file to array
-		is.read((char *)dataIn.data(), filesize);
-
-		is.close();
-	}
-
-	 prog->releasePowerDown();
-
-	if(readId)
-	{
-		std::cout << "Read ID" << std::endl;
-		std::vector<uint8_t> data = prog->readId();
-		std::cout << "Received ID (len " << std::dec << data.size() << "): ";
-		print_data(data);
-	}
-
-	if(write)
-	{
-		std::cout << "Write to " << addr << std::endl;
-		prog->program(addr, dataIn);
-	}
-
-	if(verify)
-	{
-		std::cout << "Read from " << addr << std::endl;
-
-		typeof(dataIn) dataOut;
-		dataOut = prog->read(addr,dataIn.size());
-
-		if(dataOut == dataIn)
-		{
-			std::cout << "Data verified correctly" << std::endl;
-		} else {
-			std::cout << "WARNING: Verifcation error" << std::endl;
-			std::ofstream of("readback.bin", std::ios::out | std::ios::binary);
-			of.write((char *)&dataOut[0],dataOut.size()*sizeof(dataOut[0]));
-			return 1;
-		}
+		std::cerr << "ERROR: Could not parse options: " << e.what() << std::endl;
+		std::cerr << "Run with -h for help" << std::endl;
+		exit(1);
 	}
 
 	return 0;

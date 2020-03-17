@@ -197,7 +197,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 	unsigned long expectedCount = data.size()/pageSize;
 	boost::timer::progress_display show_progress(expectedCount, std::cerr,"");
 	auto start = data.begin();
-	typeof(start) end;
+	decltype(start) end;
 	do {
 		if(distance(start,data.end()) < pageSize)
 		{

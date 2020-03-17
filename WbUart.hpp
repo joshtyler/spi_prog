@@ -15,7 +15,8 @@
 
 #include <serial/serial.h> //https://github.com/wjwwood/serial
 
-#include "utility.h"
+#include "VectorUtility.h"
+
 #include "WbInterface.hpp"
 
 class WbUartException : public std::runtime_error
@@ -40,7 +41,7 @@ public:
 		auto cur_iter = begin;
 		while(cur_iter != end)
 		{
-			auto next_iter = chunk<DATA_T>(cur_iter, end, 255);
+			auto next_iter = VectorUtility::chunk<DATA_T>(cur_iter, end, 255);
 			auto len = next_iter-cur_iter;
 			auto meta = format_transaction_metadata(true, len, addr);
 			#ifdef DEBUG_PRINTS
@@ -96,7 +97,7 @@ public:
 			std::cout << "(rd)Got packet. ";
 			print_vec(part);
 			#endif
-			
+
 			ret.insert(ret.end(), part.begin(), part.end());
 		}
 		return ret;

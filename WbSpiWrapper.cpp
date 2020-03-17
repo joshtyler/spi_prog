@@ -1,9 +1,9 @@
+#include "VectorUtility.h"
+
 #include "WbSpiWrapper.hpp"
 
-#include "utility.h"
-
 WbSpiWrapper::WbSpiWrapper(WbInterface<uint8_t> *iface, uintptr_t base_addr)
-:iface(iface)
+:iface(iface), base_addr(base_addr)
 {
 
 }
@@ -17,10 +17,10 @@ std::vector<uint8_t> WbSpiWrapper::transfer(std::vector<uint8_t> data)
 	auto cur_iter = data.begin();
 	while(cur_iter != data.end())
 	{
-		auto next_iter = chunk<uint8_t>(cur_iter, data.end(),255);
+		auto next_iter = VectorUtility::chunk<uint8_t>(cur_iter, data.end(),255);
 		auto len = next_iter-cur_iter;
-		iface->write(2, data.begin(), data.end());
-		auto temp = iface->read(2,len);
+		iface->write(base_addr+2, data.begin(), data.end());
+		auto temp = iface->read(base_addr+2,len);
 		ret.insert(ret.end(), temp.begin(), temp.end());
 		cur_iter = next_iter;
 	}
@@ -29,7 +29,7 @@ std::vector<uint8_t> WbSpiWrapper::transfer(std::vector<uint8_t> data)
 
 void WbSpiWrapper::setCs(bool val)
 {
-	auto readData = iface->read(1,1);
+	auto readData = iface->read(base_addr+1,1);
 	uint8_t reg = readData[0];
 	if(val)
 	{
@@ -38,16 +38,16 @@ void WbSpiWrapper::setCs(bool val)
 		reg &= 0xFE;
 	}
 	std::vector<uint8_t> wr = {reg};
-	iface->write(1,wr.begin(), wr.end());
+	iface->write(base_addr+1,wr.begin(), wr.end());
 }
 
 void WbSpiWrapper::send(std::vector<uint8_t> data)
 {
 	std::vector<uint8_t> wr = {0x2};
-	iface->write(1,wr.begin(), wr.end()); // We know CS must be low. Set to discard data
-	iface->write(2,data.begin(), data.end());
+	iface->write(base_addr+1,wr.begin(), wr.end()); // We know CS must be low. Set to discard data
+	iface->write(base_addr+2,data.begin(), data.end());
 	wr = {0x0};
-	iface->write(1,wr.begin(), wr.end());// We know CS must be low.
+	iface->write(base_addr+1,wr.begin(), wr.end());// We know CS must be low.
 }
 
 std::vector<uint8_t> WbSpiWrapper::receive(int num)
@@ -61,9 +61,9 @@ std::vector<uint8_t> WbSpiWrapper::receive(int num)
 	for(auto i=0u; i<numTxns; i++)
 	{
 		unsigned int cur_size = (i == numTxns-1)? (num%size? num%size : 255 ) : size;
-		std::vector<uint8_t> wr = {cur_size};
-		iface->write(3,wr.begin(), wr.end());// Set to inject bytes
-		auto temp = iface->read(2,cur_size);
+		std::vector<uint8_t> wr = {static_cast<uint8_t>(cur_size)};
+		iface->write(base_addr+3,wr.begin(), wr.end());// Set to inject bytes
+		auto temp = iface->read(base_addr+2,cur_size);
 		ret.insert(ret.end(), temp.begin(), temp.end());
 	}
 	return ret;
