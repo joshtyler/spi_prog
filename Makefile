@@ -1,7 +1,7 @@
 
 CC=g++
 CXXFLAGS=-c -Wall -Wextra  -g --std=c++17
-LDFLAGS=-lftdi -lserial
+LDFLAGS=-lftdi -lpthread
 SOURCES=FileUtility.cpp ParseUtility.cpp VectorUtility.cpp WbSpiWrapper.cpp SpiWrapper.cpp EepromProg.cpp spi_prog.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=spi_prog

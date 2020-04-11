@@ -2,7 +2,6 @@
 #define WB_UART_HPP
 // Class to talk to a wishbone over uart Interface
 // Assumed to be 8n1 UART, baud configurable
-// Uses this UART library https://github.com/wjwwood/serial
 
 #warning "Super hacky ifdef for prints"
 //#define DEBUG_PRINTS
@@ -13,7 +12,9 @@
 
 #include <boost/endian.hpp>
 
-#include <serial/serial.h> //https://github.com/wjwwood/serial
+#include <boost/asio/serial_port.hpp>
+#include <boost/asio/write.hpp>
+#include <boost/asio/read.hpp>
 
 #include "VectorUtility.h"
 
@@ -28,12 +29,9 @@ template<class DATA_T, int ADDR_BITS> class WbUart : public WbInterface<DATA_T>
 {
 public:
 	WbUart(std::string dev_path, uint32_t baud)
-	:serial(dev_path, baud, serial::Timeout::simpleTimeout(1000), serial::eightbits, serial::parity_none, serial::stopbits_one, serial::flowcontrol_hardware)//serial::Timeout::max()))
+	:serial(io, dev_path)
 	{
-		if(!serial.isOpen())
-		{
-			throw WbUartException("Could not open UART");
-		}
+		serial.set_option(boost::asio::serial_port_base::baud_rate(baud));
 	};
 
 	virtual void write(uintptr_t addr, typename std::vector<DATA_T>::iterator begin, typename std::vector<DATA_T>::iterator end) override
@@ -48,7 +46,7 @@ public:
 			std::cout << "(wr) Sending meta. ";
 			print_vec(meta);
 			#endif
-			serial.write(meta);
+			boost::asio::write(serial, boost::asio::buffer(meta));
 
 			#ifdef DEBUG_PRINTS
 			std::cout << "(wr) Sending data. ";
@@ -56,7 +54,8 @@ public:
 			std::vector<uint8_t> temp_data(dat_ptr, dat_ptr+len);
 			print_vec(temp_data);
 			#endif
-			serial.write(&*cur_iter, len); // N.B. Little hack to go from iterator to raw pointer
+			DATA_T* raw_ptr = &*cur_iter; // Little hack to go from iterator to raw pointer
+			boost::asio::write(serial, boost::asio::buffer(raw_ptr,len));
 
 			cur_iter = next_iter;
 		}
@@ -79,13 +78,14 @@ public:
 			std::cout << "(rd) Sending packet. ";
 			print_vec(packet);
 			#endif
-			serial.write(packet);
+			boost::asio::write(serial, boost::asio::buffer(packet));
 
 			// Get data back
-			std::vector<uint8_t> buf;
-			auto num_read = serial.read(buf, num*sizeof(DATA_T));
+			const size_t num_to_read = num*sizeof(DATA_T);
+			std::vector<uint8_t> buf(num_to_read);
+			auto num_read = boost::asio::read(serial, boost::asio::buffer(buf));
 
-			if(num_read != num*sizeof(DATA_T))
+			if(num_read != num_to_read)
 			{
 				throw WbUartException("Timed out when reading");
 			}
@@ -104,7 +104,8 @@ public:
 	};
 
 private:
-	serial::Serial serial;
+	boost::asio::io_context io;
+	boost::asio::serial_port serial;
 
 	std::vector<uint8_t> format_transaction_metadata(bool write, uint8_t count, uintptr_t addr)
 	{
