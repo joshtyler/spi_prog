@@ -32,6 +32,8 @@ public:
 	:serial(io, dev_path)
 	{
 		serial.set_option(boost::asio::serial_port_base::baud_rate(baud));
+		// Hardware flow control seems to be broken for the CH340 chips in the linux kernel driver :(
+		//serial.set_option(boost::asio::serial_port_base::flow_control(boost::asio::serial_port_base::flow_control::type::hardware));
 	};
 
 	virtual void write(uintptr_t addr, typename std::vector<DATA_T>::iterator begin, typename std::vector<DATA_T>::iterator end) override
