@@ -11,6 +11,8 @@
 // 0x02 : data
 // 0x03 : Inject bytes
 
+#include <bitset>
+
 #include "WbInterface.hpp"
 #include "SpiInterface.hpp"
 
@@ -28,5 +30,14 @@ class WbSpiWrapper : public SpiInterface
 	private:
 		WbInterface<uint8_t> *iface;
 		uintptr_t base_addr;
+		std::bitset<2> current_config; // Keep a copy of the config reg to avoid un-necesary reads to check its value
+
+		enum class config_bits
+		{
+			CS = 0,
+			DISCARD_RX
+		};
+
+		void modifyConfig(config_bits bit, bool value);
 };
 #endif

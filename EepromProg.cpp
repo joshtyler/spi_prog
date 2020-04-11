@@ -58,10 +58,7 @@ void EepromProg::write(int addr, std::vector<uint8_t>::iterator start, std::vect
 	{
 		throw EepromException("Attempt to write more than page size: " + std::to_string(std::distance(start,end)));
 	}
-
-	waitUntilReady();
 	enableWriting();
-	waitUntilReady();
 
 	std::vector<uint8_t> transmit(4);
 	transmit[0] = static_cast<uint8_t>(SpiCmd::byteProgram);
@@ -126,10 +123,8 @@ void EepromProg::waitUntilReady(void)
 	} while (busy);
 }
 
-void EepromProg::enableWriting(void)
+void EepromProg::checkAndDisableWriteProection(void)
 {
-	waitUntilReady();
-
 	uint8_t status = readStatusRegister();
 	// Check for block write protection
 	if((status & 0x0C) != 0)
@@ -148,22 +143,21 @@ void EepromProg::enableWriting(void)
 			spi->setCs(true);
 		}
 	}
+}
 
-	// Check for write enable latch
-	if((status & 0x1) == 0)
-	{
-		std::vector<uint8_t> transmit = {static_cast<uint8_t>(SpiCmd::writeEnable)};
-		spi->setCs(false);
-		spi->send(transmit);
-		spi->setCs(true);
-	}
+void EepromProg::enableWriting(void)
+{
+
+	std::vector<uint8_t> transmit = {static_cast<uint8_t>(SpiCmd::writeEnable)};
+	spi->setCs(false);
+	spi->send(transmit);
+	spi->setCs(true);
 }
 
 void EepromProg::sectorErase(int addr)
 {
 	waitUntilReady();
 	enableWriting();
-	readStatusRegister(); //Debug
 
 	std::vector<uint8_t> transmit(4, 0xFF);
 	transmit[0] = static_cast<uint8_t>(SpiCmd::sectorErase);
@@ -201,6 +195,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 		std::cout << "Erasing sector at 0x" << std::hex << i << std::dec << std::endl;
 		sectorErase(i);
 	}
+	waitUntilReady();
 
 	//Program in pages
 	unsigned long expectedCount = data.size()/pageSize;
@@ -214,6 +209,7 @@ void EepromProg::program(int addr, std::vector<uint8_t> data)
 		} else {
 			end = start + (pageSize);
 		}
+		waitUntilReady();
 		write(addr, start, end);
 		++show_progress;
 		addr = addr + pageSize;

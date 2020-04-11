@@ -38,6 +38,7 @@ class EepromProg
 	private:
 		void waitUntilReady(void);
 		void enableWriting(void);
+		void checkAndDisableWriteProection(void);
 
 		SpiInterface *spi;
 
