@@ -6,6 +6,9 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <bitset>
+#include <array>
+#include <utility> //pair
 #include <ctype.h>
 
 #include <cxxopts.hpp>
@@ -20,6 +23,33 @@
 #include "EepromProg.hpp"
 #include "WbUart.hpp"
 #include "WbSpiWrapper.hpp"
+
+template<int N> void print_bits(const unsigned long long val, const std::array<std::pair<std::string, std::string>,N> explanations)
+{
+	std::bitset<N> bits(val);
+
+	// First just print out the bits
+	for(int i=N-1; i>=0; i--)
+	{
+		std::cout << bits[i];
+	}
+	std::cout << std::hex << " (0x" << val << ")" << std::endl;
+
+	// Now print the explanation
+	for(int i=N-1; i>=0; i--)
+	{
+		for(int j=N-1; j>=0; j--)
+		{
+			if(i == j)
+			{
+				std::cout << bits[i];
+			} else {
+				std::cout << "-";
+			}
+		}
+		std::cout << " " << (bits[i]? explanations[i].first: explanations[i].second)   << std::endl;
+	}
+}
 
 // Try and parse an argument
 // If present, return argument
@@ -76,7 +106,7 @@ int main(int argc, char* argv[])
 	//Parse arguments
 	// N.B. for simple verification arguments are constructed/pasesed in order
 
-	std::vector<std::string> optionGroups = {"", "FTDI mode. Use with -t FTDI", "wbuart mode. Use with -t wbuart"};
+	std::vector<std::string> optionGroups = {"", "FTDI mode. Use with -t FTDI", "wbuart mode. Use with -m wbuart"};
 	try {
 		cxxopts::Options options(argv[0], "Simple programmer for SPI EEPROMs. Multiple operations are supported, and are executed in the order listed in -h");
 		options.add_options(optionGroups[0])
@@ -137,7 +167,7 @@ int main(int argc, char* argv[])
 		std::string outFile = tryParse<std::string>(result, "outfile", read);
 		int readLen = tryParse<int>(result, "readlen", read and (not(write or verify)));
 
-		if(not (readId or readStatRegs or write or read or verify))
+		if(not (readId or readStatRegs or result.count("customcmd") or write or read or verify))
 		{
 			throw cxxopts::OptionException("No action selected");
 		}
@@ -241,12 +271,48 @@ int main(int argc, char* argv[])
 			VectorUtility::print(data);
 		}
 
+		const std::array<std::array<std::pair<std::string,std::string>,8>,3> stat_reg_explanations =
+		{{
+			{{
+				{"(BUSY) chip busy",                            "(BUSY) chip ready for command"},
+				{"(WEL)  write enable latch active",            "(WEL)  not ready for write"},
+				{"(BP0)  block protect bit 0 set",              "(BP0)  block protect bit 0 clear"},
+				{"(BP1)  block protect bit 1 set",              "(BP1)  block protect bit 1 clear"},
+				{"(BP2)  block protect bit 2 set",              "(BP2)  block protect bit 2 clear"},
+				{"(TB)   protecting bottom",                    "(TB)   protecting top"},
+				{"(SEC)  protecting 4kB sectors",               "(SEC)  protecting 64kB blocks"},
+				{"(SRP)  status registers protected by WP pin", "(SRP)  WP pin ignored"}
+			}},
+			{{
+				{"(SRL)  status register software protected until next boot", "(SRL)  status register not software protected"},
+				{"(QE)   QSPI enabled (HOLD pin has no effect)",              "(QE)   QSPI disabled (HOLD pin active)"},
+				{"(R)    reserved (1)",                                       "(R)    reserved (0)"},
+				{"(LB1)  security register 1 locked",                         "(LB1)  security register 1 unlocked"},
+				{"(LB2)  security register 2 locked",                         "(LB2)  security register 2 unlocked"},
+				{"(LB3)  security register 3 locked",                         "(LB3)  security register 3 unlocked"},
+				{"(CMP)  protection range reversed",                          "(CMP)  protection range not reversed"},
+				{"(SUS)  erase/program currently suspended",                  "(SUS)  no erase/program currently suspended"}
+			}},
+			{{
+				{"(R)    reserved (1)", "(R)    reserved (0)"},
+				{"(R)    reserved (1)", "(R)    reserved (0)"},
+				{"(WPS)  individual block locks used to protect memory", "(WPS)  CMP, SEC, TB, BP[2:0] used to protect memory"},
+				{"(R)    reserved (1)", "(R)    reserved (0)"},
+				{"(R)    reserved (1)", "(R)    reserved (0)"},
+				{"(DRV2) output driver strength bit 2 (1)", "(DRV2) output driver strength bit 2 (0)"}, // No really, these two bits are the correct way around
+				{"(DRV1) output driver strength bit 1 (1)", "(DRV1) output driver strength bit 1 (0)"},
+				{"(R)    reserved (1)", "(R)    reserved (0)"}
+			}}
+		}};
+
 		if(readStatRegs)
 		{
 			std::cout << "Read Status registers" << std::endl;
 			for(int i=1; i<=3; i++)
 			{
-				std::cout << "Status register " << i << ": 0x" << std::hex << std::setfill('0') << std::setw(2) << (int) prog->readStatusRegister(i) << std::dec << std::endl;
+				std::cout << "Status register " << i << std::endl; //": 0x" << std::hex << std::setfill('0') << std::setw(2) << (int) prog->readStatusRegister(i) << std::dec << std::endl;
+				print_bits<8>(prog->readStatusRegister(i),stat_reg_explanations[i-1]);
+
 			}
 		}
 
