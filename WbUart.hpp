@@ -36,14 +36,14 @@ public:
 		//serial.set_option(boost::asio::serial_port_base::flow_control(boost::asio::serial_port_base::flow_control::type::hardware));
 	};
 
-	virtual void write(uintptr_t addr, typename std::vector<DATA_T>::iterator begin, typename std::vector<DATA_T>::iterator end) override
+	virtual void write(uintptr_t addr, AddressMode addr_mode, typename std::vector<DATA_T>::iterator begin, typename std::vector<DATA_T>::iterator end) override
 	{
 		auto cur_iter = begin;
 		while(cur_iter != end)
 		{
 			auto next_iter = VectorUtility::chunk<DATA_T>(cur_iter, end, 255);
 			auto len = next_iter-cur_iter;
-			auto meta = format_transaction_metadata(true, len, addr);
+			auto meta = format_transaction_metadata(true, len, addr, addr_mode);
 			#ifdef DEBUG_PRINTS
 			std::cout << "(wr) Sending meta. ";
 			VectorUtility::print(meta);
@@ -63,7 +63,7 @@ public:
 		}
 	};
 
-	virtual std::vector<DATA_T> read(uintptr_t addr, size_t num) override
+	virtual std::vector<DATA_T> read(uintptr_t addr, AddressMode addr_mode, size_t num) override
 	{
 
 		std::vector<DATA_T> ret;
@@ -74,7 +74,7 @@ public:
 			auto next_inc = num-i < 255? num-i : 255;
 
 			// Assume write to constant address
-			auto packet = format_transaction_metadata(false, next_inc, addr );
+			auto packet = format_transaction_metadata(false, next_inc, addr, addr_mode);
 
 			#ifdef DEBUG_PRINTS
 			std::cout << "(rd) Sending packet. ";
@@ -109,7 +109,7 @@ private:
 	boost::asio::io_context io;
 	boost::asio::serial_port serial;
 
-	std::vector<uint8_t> format_transaction_metadata(bool write, uint8_t count, uintptr_t addr)
+	std::vector<uint8_t> format_transaction_metadata(bool write, uint8_t count, uintptr_t addr, AddressMode addr_mode)
 	{
 		// First bit is !r/w
 		// Then address in big endian format (assume we are doing constant address access if we have to split)
@@ -126,7 +126,12 @@ private:
 		std::vector<uint8_t> ret;
 
 		// Operation
-		ret.push_back(write);
+		uint8_t flags = write;
+		if(addr_mode == AddressMode::INCREMENT)
+		{
+			flags |= 0x2;
+		}
+		ret.push_back(flags);
 
 		// Addr
 		boost::endian::native_to_big_inplace(addr);
