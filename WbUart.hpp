@@ -46,7 +46,7 @@ public:
 			auto meta = format_transaction_metadata(true, len, addr);
 			#ifdef DEBUG_PRINTS
 			std::cout << "(wr) Sending meta. ";
-			print_vec(meta);
+			VectorUtility::print(meta);
 			#endif
 			boost::asio::write(serial, boost::asio::buffer(meta));
 
@@ -54,7 +54,7 @@ public:
 			std::cout << "(wr) Sending data. ";
 			uint8_t * dat_ptr = (&*cur_iter);
 			std::vector<uint8_t> temp_data(dat_ptr, dat_ptr+len);
-			print_vec(temp_data);
+			VectorUtility::print(temp_data);
 			#endif
 			DATA_T* raw_ptr = &*cur_iter; // Little hack to go from iterator to raw pointer
 			boost::asio::write(serial, boost::asio::buffer(raw_ptr,len));
@@ -78,7 +78,7 @@ public:
 
 			#ifdef DEBUG_PRINTS
 			std::cout << "(rd) Sending packet. ";
-			print_vec(packet);
+			VectorUtility::print(packet);
 			#endif
 			boost::asio::write(serial, boost::asio::buffer(packet));
 
@@ -97,7 +97,7 @@ public:
 
 			#ifdef DEBUG_PRINTS
 			std::cout << "(rd)Got packet. ";
-			print_vec(part);
+			VectorUtility::print(part);
 			#endif
 
 			ret.insert(ret.end(), part.begin(), part.end());
