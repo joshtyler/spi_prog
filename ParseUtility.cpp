@@ -35,7 +35,7 @@
 		if(idx)
 		{
 			// If the first character is not a number, it must be wrong
-			if(idx)
+			if(*idx)
 			{
 				// Split string into number and multiplier
 				double num = std::atof(str.substr(0,*idx).c_str());
