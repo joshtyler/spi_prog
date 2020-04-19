@@ -4,7 +4,7 @@
 // Assumed to be 8n1 UART, baud configurable
 
 #warning "Super hacky ifdef for prints"
-//#define DEBUG_PRINTS
+#define DEBUG_PRINTS
 
 #include <iostream>
 #include <string>
@@ -28,12 +28,13 @@ class WbUartException : public std::runtime_error
 template<class DATA_T, int ADDR_BITS> class WbUart : public WbInterface<DATA_T>
 {
 public:
-	WbUart(std::string dev_path, uint32_t baud)
-	:serial(io, dev_path)
+	WbUart(std::string dev_path, uint32_t baud, bool debug_prints=false)
+	:serial(io, dev_path), debug_prints(debug_prints)
 	{
 		serial.set_option(boost::asio::serial_port_base::baud_rate(baud));
 		// Hardware flow control seems to be broken for the CH340 chips in the linux kernel driver :(
 		//serial.set_option(boost::asio::serial_port_base::flow_control(boost::asio::serial_port_base::flow_control::type::hardware));
+
 	};
 
 	virtual void write(uintptr_t addr, AddressMode addr_mode, typename std::vector<DATA_T>::iterator begin, typename std::vector<DATA_T>::iterator end) override
@@ -44,20 +45,21 @@ public:
 			auto next_iter = VectorUtility::chunk<DATA_T>(cur_iter, end, 255);
 			auto len = next_iter-cur_iter;
 			auto meta = format_transaction_metadata(true, len, addr, addr_mode);
-			#ifdef DEBUG_PRINTS
-			std::cout << "(wr) Sending meta. ";
-			VectorUtility::print(meta);
-			#endif
+			if(debug_prints)
+			{
+				std::cout << "(wr) Sending metadata: ";
+				VectorUtility::print(meta);
+			}
 			boost::asio::write(serial, boost::asio::buffer(meta));
 
-			#ifdef DEBUG_PRINTS
-			std::cout << "(wr) Sending data. ";
-			uint8_t * dat_ptr = (&*cur_iter);
-			std::vector<uint8_t> temp_data(dat_ptr, dat_ptr+len);
-			VectorUtility::print(temp_data);
-			#endif
-			DATA_T* raw_ptr = &*cur_iter; // Little hack to go from iterator to raw pointer
-			boost::asio::write(serial, boost::asio::buffer(raw_ptr,len));
+			auto transmit_data = data_to_uint8(cur_iter,next_iter);
+
+			if(debug_prints)
+			{
+				std::cout << "(wr) Sending data: ";
+				VectorUtility::print(transmit_data);
+			}
+			boost::asio::write(serial, boost::asio::buffer(transmit_data));
 
 			cur_iter = next_iter;
 		}
@@ -76,14 +78,19 @@ public:
 			// Assume write to constant address
 			auto packet = format_transaction_metadata(false, next_inc, addr, addr_mode);
 
-			#ifdef DEBUG_PRINTS
-			std::cout << "(rd) Sending packet. ";
-			VectorUtility::print(packet);
-			#endif
+			if(debug_prints)
+			{
+				std::cout << "(rd) Sending metadata: ";
+				VectorUtility::print(packet);
+			}
 			boost::asio::write(serial, boost::asio::buffer(packet));
 
 			// Get data back
 			const size_t num_to_read = num*sizeof(DATA_T);
+			if(debug_prints)
+			{
+				std::cout << "(rd) Trying to read:" << num_to_read << std::endl;
+			}
 			std::vector<uint8_t> buf(num_to_read);
 			auto num_read = boost::asio::read(serial, boost::asio::buffer(buf));
 
@@ -92,13 +99,13 @@ public:
 				throw WbUartException("Timed out when reading");
 			}
 
+			auto part = uint8_to_data(buf.begin(),buf.end());
 
-			auto part = data_to_uint8_t(buf);
-
-			#ifdef DEBUG_PRINTS
-			std::cout << "(rd)Got packet. ";
-			VectorUtility::print(part);
-			#endif
+			if(debug_prints)
+			{
+				std::cout << "(rd)Got packet. ";
+				VectorUtility::print(part);
+			}
 
 			ret.insert(ret.end(), part.begin(), part.end());
 		}
@@ -108,6 +115,8 @@ public:
 private:
 	boost::asio::io_context io;
 	boost::asio::serial_port serial;
+	bool debug_prints;
+
 
 	std::vector<uint8_t> format_transaction_metadata(bool write, uint8_t count, uintptr_t addr, AddressMode addr_mode)
 	{
@@ -153,23 +162,57 @@ private:
 
 	}
 
-	std::vector<uint8_t> data_to_uint8_t(std::vector<DATA_T> data)
+	std::vector<uint8_t> data_to_uint8(typename std::vector<DATA_T>::iterator begin, typename std::vector<DATA_T>::iterator end)
 	{
-		std::vector<uint8_t> data_u8;
-		if(sizeof(DATA_T) != 1)
+		std::vector<uint8_t> data;
+		data.reserve(((end-begin)*sizeof(DATA_T)));
+		if(sizeof(DATA_T) == 1)
 		{
-			for(auto datum : data)
+			// We can bypass the complex logic for the special case of size 1
+			std::copy(begin,end,std::back_inserter(data));
+		} else {
+			for(auto iter = begin; iter != end; iter++)
 			{
-				boost::endian::native_to_big_inplace(datum);
+				auto datum = boost::endian::big_to_native(*iter);
 				for(auto i=0u; i<sizeof(datum); i++)
 				{
-					data_u8.push_back(reinterpret_cast<uint8_t*>(&datum)[i]);
+					data.push_back(reinterpret_cast<uint8_t*>(&datum)[i]);
 				}
 			}
-		} else {
-			data_u8 =  data;
 		}
-		return data_u8;
+		return data;
+	}
+
+	std::vector<DATA_T> uint8_to_data(typename std::vector<uint8_t>::iterator begin, typename std::vector<uint8_t>::iterator end)
+	{
+		std::vector<DATA_T> data;
+
+		size_t size_data_words = (end-begin)/sizeof(DATA_T) + ((end-begin)%sizeof(DATA_T) != 0);
+		data.reserve(size_data_words);
+		if(sizeof(DATA_T) == 1)
+		{
+			// We can bypass the complex logic for the special case of size 1
+			std::copy(begin,end,std::back_inserter(data));
+		} else {
+			auto iter = begin;
+			while(iter != end)
+			{
+				DATA_T datum(0);
+				for(auto i=0u; i<sizeof(DATA_T); i++)
+				{
+					datum |= (static_cast<DATA_T>(*iter) << 8*i);
+					iter++;
+					if(iter == end)
+					{
+						break;
+					}
+				}
+
+				boost::endian::native_to_big_inplace(datum);
+				data.push_back(datum);
+			}
+		}
+		return data;
 	}
 };
 #endif
