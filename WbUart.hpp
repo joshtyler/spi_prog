@@ -3,9 +3,6 @@
 // Class to talk to a wishbone over uart Interface
 // Assumed to be 8n1 UART, baud configurable
 
-#warning "Super hacky ifdef for prints"
-#define DEBUG_PRINTS
-
 #include <iostream>
 #include <string>
 #include <exception>
