@@ -120,8 +120,8 @@ int main(int argc, char* argv[])
 			("v,verify",       "Verify against a file")
 			("a,address",      "Address to read from/write to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
 			("i,infile",       "File to write to flash/verify against (use with -w or -v)", cxxopts::value<std::string>())
-			("o,outfile",      "File to save data read from flash to (use with -r)")
-			("l,readlen",      "Length to read back from EEPROM. (use with -r, but not -w or -v. In these cases lengh is implicit)")
+			("o,outfile",      "File to save data read from flash to (use with -r)", cxxopts::value<std::string>())
+			("l,readlen",      "Length to read back from EEPROM. (use with -r, but not -w or -v. In these cases lengh is implicit)", cxxopts::value<int>())
 			;
 
 		options.add_options(optionGroups[1])
