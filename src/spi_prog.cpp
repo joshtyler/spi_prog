@@ -59,13 +59,14 @@ template<int N> void print_bits(const unsigned long long val, const std::array<s
 template <typename T> T tryParse(const cxxopts::ParseResult &result, std::string arg, bool required=true)
 {
 	T ret;
-	if(result.count(arg))
+	try
 	{
-		ret = result[arg].as<T>();
-	} else {
+		T res = result[arg].as<T>();
+		ret = res;
+	} catch (std::domain_error &e) {
 		if(required)
 		{
-			throw cxxopts::OptionException("Did not specify "+arg);
+			throw cxxopts::OptionException("Did not specify "+arg+" correctly");
 		}
 	}
 	return ret;
@@ -127,7 +128,7 @@ int main(int argc, char* argv[])
 		options.add_options(optionGroups[1])
 			("ftdidev",   "Device string, in ftdi_usb_open_string() format.",cxxopts::value<std::string>()->default_value("i:0x0403:0x6010"))
 			("iface",     "Used for mult-interface FTDI chips: A,B,C or D",cxxopts::value<std::string>()->default_value("A"))
-			("xtalFreq",  "FTDI IC crystal frequency either 60MHz or 12MHz. Used for clock divider calculation",cxxopts::value<std::string>()->default_value("12MHz"))
+			("xtalfreq",  "FTDI IC crystal frequency either 60MHz or 12MHz. Used for clock divider calculation",cxxopts::value<std::string>()->default_value("12MHz"))
 			("progfreq",  "Desired programming frequency. Max 6MHz for 12MHz clock. Max 30MHz for 60MHz clock",cxxopts::value<std::string>()->default_value("6MHz"))
 			;
 
