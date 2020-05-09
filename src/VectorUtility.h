@@ -12,6 +12,8 @@ namespace VectorUtility
 
 	template<typename DATA_T> void print(std::vector<DATA_T> data, bool printMeta=false)
 	{
+		std::ios_base::fmtflags flags(std::cout.flags());
+
 		if(printMeta)
 		{
 			std::cout << "Size " << data.size() << ". Data(hex): ";
@@ -28,9 +30,7 @@ namespace VectorUtility
 			std::cout << "0x" << std::setfill('0') << std::setw(sizeof(DATA_T)*2) << static_cast<uint64_t>(data[i]);
 		}
 
-		#warning "Lazy preservation of flags, should preserve all"
-		#warning "Probably shouldn't newline here, but elsewhere depends on it"
-		std::cout << std::dec << std::endl;
+		std::cout.flags(flags);
 	}
 
 	//template<typename DATA_T> (typename std::vector<DATA_T>::iterator) chunk(std::vector<DATA_T>::iterator start, std::vector<DATA_T>::iterator end, size_t size)

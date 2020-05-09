@@ -269,6 +269,7 @@ int main(int argc, char* argv[])
 			std::vector<uint8_t> data = prog->readId();
 			std::cout << "Received ID: ";
 			VectorUtility::print(data);
+			std::cout << std::endl;
 		}
 
 		const std::array<std::array<std::pair<std::string,std::string>,8>,3> stat_reg_explanations =
@@ -320,6 +321,7 @@ int main(int argc, char* argv[])
 		{
 			std::cout << "Writing custom command: ";
 			VectorUtility::print(*customCmd);
+			std::cout << std::endl;
 
 			spi->setCs(false);
 			auto result = spi->transfer(*customCmd);
@@ -327,6 +329,7 @@ int main(int argc, char* argv[])
 
 			std::cout << "Result: ";
 			VectorUtility::print(result);
+			std::cout << std::endl;
 		}
 
 

@@ -53,6 +53,7 @@ public:
 			{
 				std::cout << "(wr) Sending metadata: ";
 				VectorUtility::print(meta);
+				std::cout << std::endl;
 			}
 			boost::asio::write(serial, boost::asio::buffer(meta));
 
@@ -62,6 +63,7 @@ public:
 			{
 				std::cout << "(wr) Sending data: ";
 				VectorUtility::print(transmit_data);
+				std::cout << std::endl;
 			}
 			boost::asio::write(serial, boost::asio::buffer(transmit_data));
 
@@ -86,6 +88,7 @@ public:
 			{
 				std::cout << "(rd) Sending metadata: ";
 				VectorUtility::print(packet);
+				std::cout << std::endl;
 			}
 			boost::asio::write(serial, boost::asio::buffer(packet));
 
@@ -109,6 +112,7 @@ public:
 			{
 				std::cout << "(rd)Got packet. ";
 				VectorUtility::print(part);
+				std::cout << std::endl;
 			}
 
 			ret.insert(ret.end(), part.begin(), part.end());
