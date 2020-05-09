@@ -1,10 +1,10 @@
-#include "EepromProg.hpp"
+#include "SpiFlash.hpp"
 #include <vector>
 #include <iostream>
 #include <unistd.h>
 #include<boost/timer/progress_display.hpp>
 
-std::vector<uint8_t> EepromProg::read(int addr, int num)
+std::vector<uint8_t> SpiFlash::read(int addr, int num)
 {
 	waitUntilReady();
 
@@ -24,7 +24,7 @@ std::vector<uint8_t> EepromProg::read(int addr, int num)
 }
 
 
-std::vector<uint8_t> EepromProg::readId(void)
+std::vector<uint8_t> SpiFlash::readId(void)
 {
 	waitUntilReady();
 
@@ -41,7 +41,7 @@ std::vector<uint8_t> EepromProg::readId(void)
 	return result;
 }
 
-void EepromProg::releasePowerDown(void)
+void SpiFlash::releasePowerDown(void)
 {
 	std::vector<uint8_t> transmit = {0xAB,0xFF,0xFF,0xFF,0xFF};
 	spi->setCs(false);
@@ -52,11 +52,11 @@ void EepromProg::releasePowerDown(void)
 // Writes in page program mode
 // Takes iterator to first byte to Program
 // Returns iterator to last byte programmed
-void EepromProg::write(int addr, std::vector<uint8_t>::iterator start, std::vector<uint8_t>::iterator end)
+void SpiFlash::write(int addr, std::vector<uint8_t>::iterator start, std::vector<uint8_t>::iterator end)
 {
 	if(std::distance(start,end) > pageSize)
 	{
-		throw EepromException("Attempt to write more than page size: " + std::to_string(std::distance(start,end)));
+		throw SpiFlashException("Attempt to write more than page size: " + std::to_string(std::distance(start,end)));
 	}
 	enableWriting();
 
@@ -77,7 +77,7 @@ void EepromProg::write(int addr, std::vector<uint8_t>::iterator start, std::vect
 	spi->setCs(true);
 }
 
-void EepromProg::chipErase(void)
+void SpiFlash::chipErase(void)
 {
 	waitUntilReady();
 	enableWriting();
@@ -91,7 +91,7 @@ void EepromProg::chipErase(void)
 
 
 
-uint8_t EepromProg::readStatusRegister(int reg)
+uint8_t SpiFlash::readStatusRegister(int reg)
 {
 	SpiCmd cmd;
 	switch(reg)
@@ -99,7 +99,7 @@ uint8_t EepromProg::readStatusRegister(int reg)
 		case 1 : cmd = SpiCmd::readStatusRegister1; break;
 		case 2 : cmd = SpiCmd::readStatusRegister2; break;
 		case 3 : cmd = SpiCmd::readStatusRegister3; break;
-		default : throw EepromException("Attempt to read invalid status register");
+		default : throw SpiFlashException("Attempt to read invalid status register");
 	}
 
 	std::vector<uint8_t> transmit = {static_cast<uint8_t>(cmd), 0xFF};
@@ -111,7 +111,7 @@ uint8_t EepromProg::readStatusRegister(int reg)
 	return result[1];
 }
 
-void EepromProg::waitUntilReady(void)
+void SpiFlash::waitUntilReady(void)
 {
 	uint8_t busy;
 	do
@@ -123,7 +123,7 @@ void EepromProg::waitUntilReady(void)
 	} while (busy);
 }
 
-void EepromProg::checkAndDisableWriteProection(void)
+void SpiFlash::checkAndDisableWriteProection(void)
 {
 	uint8_t status = readStatusRegister();
 	// Check for block write protection
@@ -145,7 +145,7 @@ void EepromProg::checkAndDisableWriteProection(void)
 	}
 }
 
-void EepromProg::enableWriting(void)
+void SpiFlash::enableWriting(void)
 {
 
 	std::vector<uint8_t> transmit = {static_cast<uint8_t>(SpiCmd::writeEnable)};
@@ -154,7 +154,7 @@ void EepromProg::enableWriting(void)
 	spi->setCs(true);
 }
 
-void EepromProg::sectorErase(int addr)
+void SpiFlash::sectorErase(int addr)
 {
 	waitUntilReady();
 	enableWriting();
@@ -174,12 +174,12 @@ void EepromProg::sectorErase(int addr)
 	waitUntilReady();
 }
 
-void EepromProg::program(int addr, std::vector<uint8_t> data)
+void SpiFlash::program(int addr, std::vector<uint8_t> data)
 {
 	// Ensure address is aligned with sector size
 	if((addr % sectorSize) != 0)
 	{
-		throw EepromException("Address not aligned with sector size");
+		throw SpiFlashException("Address not aligned with sector size");
 	}
 
 	int eraseEnd = addr+data.size();

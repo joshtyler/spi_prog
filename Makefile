@@ -22,4 +22,4 @@ $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(CXXFLAGS) $< -o $@
 
 clean:
-	/bin/rm -f $(OBJECTS) $(EXECUTABLE)
+	/bin/rm -f $(OBJECTS) $(EXECUTABLE) .depend

@@ -1,7 +1,7 @@
-// Wrapper to contain all the commands needed to write to the EEPROM
+// Wrapper to contain all the commands needed to write to the SPI Flash
 
-#ifndef EEPROM_PROG_HPP
-#define EEPROM_PROG_HPP
+#ifndef SPI_FLASH_HPP
+#define SPI_FLASH_HPP
 
 
 #include <vector>
@@ -9,22 +9,22 @@
 
 #include "SpiWrapper.hpp"
 
-class EepromException : public std::exception
+class SpiFlashException : public std::exception
 {
 	public:
-		EepromException(std::string ss) : s(ss) {}
-		~EepromException() throw () {}
+		SpiFlashException(std::string ss) : s(ss) {}
+		~SpiFlashException() throw () {}
 		const char* what() const throw() { return s.c_str(); }
 
 	private:
 		std::string s;
 };
 
-class EepromProg
+class SpiFlash
 {
 	public:
-		EepromProg(SpiInterface *spi) :spi(spi) {};
-		~EepromProg() {};
+		SpiFlash(SpiInterface *spi) :spi(spi) {};
+		~SpiFlash() {};
 
 		std::vector<uint8_t> read(int addr, int num);
 		std::vector<uint8_t> readId(void);

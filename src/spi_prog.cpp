@@ -20,7 +20,7 @@
 #include "VectorUtility.h"
 
 #include "SpiWrapper.hpp"
-#include "EepromProg.hpp"
+#include "SpiFlash.hpp"
 #include "WbUart.hpp"
 #include "WbSpiWrapper.hpp"
 
@@ -108,20 +108,20 @@ int main(int argc, char* argv[])
 
 	std::vector<std::string> optionGroups = {"", "FTDI mode. Use with -t FTDI", "wbuart mode. Use with -m wbuart"};
 	try {
-		cxxopts::Options options(argv[0], "Simple programmer for SPI EEPROMs. Multiple operations are supported, and are executed in the order listed in -h");
+		cxxopts::Options options(argv[0], "Simple programmer for SPI flash. Multiple operations are supported, and are executed in the order listed in -h");
 		options.add_options(optionGroups[0])
 			("h,help",         "Print help")
 			("m,mode",         "Which device will do the programming. FTDI or wbuart",cxxopts::value<std::string>())
-			("d,readid",       "Read the ID bytes of the EEPROM")
+			("d,readid",       "Read the ID bytes of the flash")
 			("s,readstatregs", "Read the status registers")
 			("c,customcmd",    "Execute a custom command (comma separated values, no whitespace)",cxxopts::value<std::vector<uint8_t>>())
-			("w,write",        "Write a file to the EEPROM")
-			("r,read",         "Read EEPROM to file")
+			("w,write",        "Write a file to the flash")
+			("r,read",         "Read flash to file")
 			("v,verify",       "Verify against a file")
 			("a,address",      "Address to read from/write to. Must be aligned with sector size",cxxopts::value<int>()->default_value("0"))
 			("i,infile",       "File to write to flash/verify against (use with -w or -v)", cxxopts::value<std::string>())
 			("o,outfile",      "File to save data read from flash to (use with -r)", cxxopts::value<std::string>())
-			("l,readlen",      "Length to read back from EEPROM. (use with -r, but not -w or -v. In these cases lengh is implicit)", cxxopts::value<int>())
+			("l,readlen",      "Length to read back from flash. (use with -r, but not -w or -v. In these cases lengh is implicit)", cxxopts::value<int>())
 			;
 
 		options.add_options(optionGroups[1])
@@ -178,7 +178,7 @@ int main(int argc, char* argv[])
 		// Pointers are constructed here so they have correct scope
 		std::unique_ptr<SpiInterface> spi = NULL;
 		std::unique_ptr<WbUart<uint8_t,8>> uart = NULL;
-		std::unique_ptr<EepromProg> prog = NULL;
+		std::unique_ptr<SpiFlash> prog = NULL;
 		// Perform target specific arument parsing
 		if(mode == "ftdi")
 		{
@@ -236,7 +236,7 @@ int main(int argc, char* argv[])
 			}
 
 			spi = std::make_unique<SpiWrapper>(ftdiDev, iface, freqDivider);
-			prog = std::make_unique<EepromProg>(spi.get());
+			prog = std::make_unique<SpiFlash>(spi.get());
 
 		} else if(mode == "wbuart") {
 
@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
 
 			uart = std::make_unique<WbUart<uint8_t,8>>(uartDev, baud);
 			spi = std::make_unique<WbSpiWrapper>(uart.get(),compAddr);
-			prog = std::make_unique<EepromProg>(spi.get());
+			prog = std::make_unique<SpiFlash>(spi.get());
 
 		} else {
 			throw cxxopts::OptionException("Invalid mode: "+mode);
