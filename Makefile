@@ -1,8 +1,7 @@
-
 CC=g++
 CXXFLAGS=-c -Wall -Wextra  -g --std=c++17
 LDFLAGS=-lftdi -lpthread
-SOURCES=FileUtility.cpp ParseUtility.cpp WbSpiWrapper.cpp SpiWrapper.cpp EepromProg.cpp spi_prog.cpp
+SOURCES=$(wildcard src/*.cpp)
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=spi_prog
 
@@ -11,7 +10,7 @@ all: .depend $(SOURCES) $(EXECUTABLE)
 
 .depend: $(SOURCES)
 	rm -f ./.depend
-	$(CC) $(CXXFLAGS) -MM $^>>./.depend;
+	$(CC) $(CXXFLAGS) -MM $^ >>./.depend;
 
 include .depend
 
@@ -23,4 +22,4 @@ $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(CXXFLAGS) $< -o $@
 
 clean:
-	/bin/rm -rf $(OBJECTS) $(EXECUTABLE)
+	/bin/rm -f $(OBJECTS) $(EXECUTABLE)
