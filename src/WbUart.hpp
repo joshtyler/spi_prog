@@ -34,18 +34,9 @@ public:
 		// Hardware flow control seems to be broken for the CH340 chips in the linux kernel driver :(
 		//serial.set_option(boost::asio::serial_port_base::flow_control(boost::asio::serial_port_base::flow_control::type::hardware));
 
-		// Send a dummy byte with the highest bit set, this will be ignored by the fpga block
-		// But it will stop the bootloop process if we are talking to the bootloader
-		const uint8_t dummy = ~(DATA_T(0));
-		boost::asio::write(serial, boost::asio::buffer(&dummy,1));
-
-		// Flush send to make sure we sent the dummy byte
+		// Flush the serial port to get rid of any garbage data
 		tcflush(serial.lowest_layer().native_handle(), TCOFLUSH);
-
-		// Sleep a bit to give the FPGA a chace to send out all of its data
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-		// Flush all of the data we have received (this will be the verion strin in the bootloader)
 		tcflush(serial.lowest_layer().native_handle(), TCIFLUSH);
 
 	};
