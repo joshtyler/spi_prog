@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 include_directories(src)
 include_directories(thirdparty/cxxopts/include)
+include_directories(${LIBFTDI_INCLUDE_DIR})
 
 add_executable(spi_prog
         src/FileUtility.cpp
