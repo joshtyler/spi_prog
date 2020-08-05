@@ -1,0 +1,29 @@
+name: CMake Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true 
+    - name: Setup dependencies
+      run: sudo apt install libusb-1.0-0-dev
+    - name: Create build directory
+      run: cmake -E make_directory ${{runner.workspace}}/build
+    - name: configure
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE
+    - name: build
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build .
