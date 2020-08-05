@@ -1,0 +1,3 @@
+[submodule "thirdparty/libftdi"]
+	path = thirdparty/libftdi
+	url = https://github.com/wjakob/libftdi.git
