@@ -4,6 +4,7 @@ project(spi_prog)
 set(CMAKE_CXX_STANDARD 17)
 
 include_directories(src)
+include_directories(thirdparty/cxxopts/include)
 
 add_executable(spi_prog
         src/FileUtility.cpp

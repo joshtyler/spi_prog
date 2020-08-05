@@ -1,3 +1,6 @@
 [submodule "thirdparty/libftdi"]
 	path = thirdparty/libftdi
 	url = https://github.com/wjakob/libftdi.git
+[submodule "thirdparty/cxxopts"]
+	path = thirdparty/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git
