@@ -16,7 +16,7 @@ jobs:
       with:
         submodules: true 
     - name: Setup dependencies
-      run: sudo apt install libusb-1.0-0-dev
+      run: sudo apt install libusb-1.0-0-dev libboost-dev
     - name: Create build directory
       run: cmake -E make_directory ${{runner.workspace}}/build
     - name: configure
