@@ -5,7 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 
 include_directories(src)
 include_directories(thirdparty/cxxopts/include)
-include_directories(${LIBFTDI_INCLUDE_DIR})
+
+add_subdirectory(thirdparty/libftdi)
+# Not sure why this next line is needed, doesn't include_directories sort for us?
+include_directories(thirdparty/libftdi/src)
 
 add_executable(spi_prog
         src/FileUtility.cpp
@@ -24,5 +27,4 @@ add_executable(spi_prog
         src/WbSpiWrapper.hpp
         src/WbUart.hpp)
 
-add_subdirectory(thirdparty/libftdi)
 target_link_libraries(spi_prog ftdi1 pthread)
