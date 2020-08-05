@@ -9,7 +9,7 @@
 #include <thread>
 #include <chrono>
 
-#include <boost/endian.hpp>
+#include <boost/endian/conversion.hpp>
 
 #include <boost/asio/serial_port.hpp>
 #include <boost/asio/write.hpp>
