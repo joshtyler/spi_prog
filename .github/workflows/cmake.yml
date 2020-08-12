@@ -27,3 +27,7 @@ jobs:
       working-directory: ${{runner.workspace}}/build
       shell: bash
       run: cmake --build .
+    - uses: actions/upload-artifact@v2
+      with:
+        name: executable
+        path: build/spi_prog
