@@ -10,6 +10,12 @@ add_subdirectory(thirdparty/libftdi)
 # Not sure why this next line is needed, doesn't include_directories sort for us?
 include_directories(thirdparty/libftdi/src)
 
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME OFF)
+find_package(Boost 1.72 REQUIRED COMPONENTS system)
+message(STATUS "Boost version: ${Boost_VERSION}")
+
 add_executable(spi_prog
         src/FileUtility.cpp
         src/FileUtility.h
