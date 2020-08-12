@@ -15,6 +15,14 @@
 #include <boost/asio/write.hpp>
 #include <boost/asio/read.hpp>
 
+#include <boost/version.hpp>
+// io_service changed to io_context in 1.66
+#if (((BOOST_VERSION / 100000) == 1) && (BOOST_VERSION / 100 % 1000) >=66)
+	typedef boost::asio::io_context io_t;
+#else
+	typedef boost::asio::io_service io_t;
+#endif
+
 #include "VectorUtility.h"
 
 #include "WbInterface.hpp"
@@ -121,7 +129,7 @@ public:
 	};
 
 private:
-	boost::asio::io_context io;
+	io_t io;
 	boost::asio::serial_port serial;
 	bool debug_prints;
 
