@@ -13,7 +13,7 @@ include_directories(thirdparty/libftdi/src)
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
-find_package(Boost 1.72 REQUIRED COMPONENTS system)
+find_package(Boost 1.65 REQUIRED COMPONENTS system)
 message(STATUS "Boost version: ${Boost_VERSION}")
 
 add_executable(spi_prog
