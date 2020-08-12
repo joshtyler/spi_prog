@@ -30,4 +30,4 @@ jobs:
     - uses: actions/upload-artifact@v2
       with:
         name: executable
-        path: build/spi_prog
+        path: ${{runner.workspace}}/build/spi_prog
