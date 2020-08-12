@@ -15,6 +15,7 @@ set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 find_package(Boost 1.65 REQUIRED COMPONENTS system)
 message(STATUS "Boost version: ${Boost_VERSION}")
+include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(spi_prog
         src/FileUtility.cpp
@@ -33,4 +34,4 @@ add_executable(spi_prog
         src/WbSpiWrapper.hpp
         src/WbUart.hpp)
 
-target_link_libraries(spi_prog ftdi1 pthread)
+target_link_libraries(spi_prog ftdi1 pthread ${Boost_LIBRARIES})
