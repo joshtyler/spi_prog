@@ -24,6 +24,7 @@ jobs:
         fi
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
           choco install -y boost-msvc-14.1
+          pip install libusb1
         fi
       shell: bash
     - name: Create build directory
