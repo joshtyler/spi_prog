@@ -20,7 +20,7 @@ jobs:
     - name: Setup dependencies
       run: |
         if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-          sudo apt install libusb-1.0-0-dev libboost-dev
+          sudo apt install libusb-1.0-0-dev libboost-dev libboost-system-dev
         fi
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
           choco install -y boost-msvc-14.1
