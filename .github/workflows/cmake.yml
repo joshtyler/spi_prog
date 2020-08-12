@@ -25,6 +25,7 @@ jobs:
         if ["${{ matrix.os }}" = "windows-latest"]; then
           choco install -y boost-msvc-14.1
         fi
+      shell: bash
     - name: Create build directory
       run: cmake -E make_directory ${{runner.workspace}}/build
     - name: configure
