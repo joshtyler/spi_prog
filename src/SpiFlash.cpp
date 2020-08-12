@@ -2,7 +2,16 @@
 #include <vector>
 #include <iostream>
 #include <unistd.h>
-#include<boost/timer/progress_display.hpp>
+
+#include <boost/version.hpp>
+// io_service changed to io_context in 1.66
+#if (((BOOST_VERSION / 100000) == 1) && (BOOST_VERSION / 100 % 1000) >= 72)
+	#include<boost/timer/progress_display.hpp>
+	typedef boost::timer::progress_display display_t;
+#else
+	#include<boost/progress.hpp>
+	typedef boost::progress_display display_t;
+#endif
 
 std::vector<uint8_t> SpiFlash::read(int addr, int num)
 {
@@ -199,7 +208,7 @@ void SpiFlash::program(int addr, std::vector<uint8_t> data)
 
 	//Program in pages
 	unsigned long expectedCount = data.size()/pageSize;
-	boost::timer::progress_display show_progress(expectedCount, std::cerr,"");
+	display_t show_progress(expectedCount, std::cerr,"");
 	auto start = data.begin();
 	decltype(start) end;
 	do {
