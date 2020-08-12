@@ -18,7 +18,13 @@ jobs:
       with:
         submodules: true 
     - name: Setup dependencies
-      run: sudo apt install libusb-1.0-0-dev libboost-dev libboost-system-dev
+      run: |
+        if ["${{ matrix.os }}" = "ubuntu-latest"]; then
+          sudo apt install libusb-1.0-0-dev libboost-dev
+        fi
+        if ["${{ matrix.os }}" = "windows-latest"]; then
+          choco install -y boost-msvc-14.1
+        fi
     - name: Create build directory
       run: cmake -E make_directory ${{runner.workspace}}/build
     - name: configure
