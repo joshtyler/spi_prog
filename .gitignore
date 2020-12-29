@@ -1,2 +1,4 @@
 spi_prog
 build
+.idea
+cmake-build-debug
